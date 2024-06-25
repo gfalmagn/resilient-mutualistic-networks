@@ -3,6 +3,7 @@ from scipy.optimize import fsolve
 from numpy.linalg import eig
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+from scipy.linalg import solve_continuous_lyapunov
 
 
 def glv(X, A, r):
@@ -125,11 +126,8 @@ def generate_glv_matrix_cascade(N, fA, fM, fF, P=0.1, pM=0, pF=0):
 
 
     # Fill in antagonisms
-    # Here we swap indices compared to those in the paper;
-    # this is because the first one is the resource and the
-    # second the consumer.
     for i, j in antagonisms:
-        a[j, i] = g[j, i] * fA * A[j, i] / np.sum(A[j, r_a[j]])
+        a[j, i] = g[j, i] * fA * A[j, i] / np.sum(A[j, r_a[j]]) # j (higher index) preys on i --> ensures directionality
         a[i, j] = - a[j, i] / g[j, i]
 
     # Fill in s_i values (i.e. a_ii), which must be negative
@@ -176,8 +174,21 @@ def stability(a, X_eq):
     # M_ij = X_eq_i & a_ij
     M = X_eq * a
     eigenvalues, _ = eig(M)
-    return eigenvalues
+    return all(np.real(eigenvalues) < 0)
 
+def global_stability(a):
+    # Test whether the interaction matrix is Lyapunov-diagonally stable,
+    # which means the system has a global stable equilibrium.
+    Q = np.eye(len(a))  # Identity matrix as positive definite matrix
+
+    # Solve the Lyapunov equation A.T * D + D * A = -Q
+    D = solve_continuous_lyapunov(a.T, -Q)
+    
+    # Check if D is a positive diagonal matrix
+    is_diagonal = np.allclose(D, np.diag(np.diagonal(D)))
+    is_positive_diagonal = np.all(np.diagonal(D) > 0)
+    
+    return is_diagonal and is_positive_diagonal
 
 # Example usage
 N = 20  # Number of species
@@ -189,11 +200,10 @@ for P in tqdm([0.2, 0.4, 0.5, 0.6, 0.8]):
         for trial in range(100):
             r, a, X_eq = generate_lv_params(N, P, pM)
 
-            evs = stability(a, X_eq)
+            stable = stability(a, X_eq)
 
-            s += [all(np.real(evs) < 0)]
+            s += [stable]
         stabilities[(P, pM)] = np.mean(s)
-
 
 import pandas as pd
 
