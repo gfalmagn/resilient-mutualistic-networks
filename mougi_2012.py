@@ -47,7 +47,7 @@ def generate_glv_matrix_cascade(N, fA, fM, fF, fC, pA=0.1, pM=0, pF=0, pC=0):
     n_a = int(P * N * (N - 1) / 2)  # number of connected pairs (edges) [SH]
 
     # Construct list of all pairs of species
-    pairs = np.array([(i, j) for i in range(N) for j in range(i + 1, N)])
+    pairs = np.array([(i, j) for i in range(N) for j in range(i + 1, N)], dtype="f,f")
 
     # Pick out P links randomly
     sel = np.random.choice(pairs, size=n_a, replace=False)
@@ -57,8 +57,9 @@ def generate_glv_matrix_cascade(N, fA, fM, fF, fC, pA=0.1, pM=0, pF=0, pC=0):
     for label, p in zip('afcm', [pA, pF, pC, pM]):
         size = int(p * n_a)
         interactions[label] = np.random.choice(sel, size=size, replace=False)
-        sel = set(sel).difference(interactions[label])
-        sel = np.array(list(sel))
+        # get pairs that are in sel but not in interactions
+        remainingpairs = np.logical_not(np.isin(sel, interactions[label]))
+        sel = sel[remainingpairs]
 
     # Capture mutualistic interaction resources
     r_m = {}
@@ -189,11 +190,11 @@ def global_stability(a):
 N = 20  # Number of species
 
 stabilities = {}
-for P in tqdm([0.2, 0.4, 0.5, 0.6, 0.8]):
+for pA in tqdm([0.2, 0.4, 0.5, 0.6, 0.8]):
     for pM in np.arange(0, 1, 0.05):
         s = []
         for trial in range(100):
-            r, a, X_eq = generate_lv_params(N, P, pM)
+            r, a, X_eq = generate_lv_params(N, pA, pM, 0.1,0.1)
 
             stable = stability(a, X_eq)
 
