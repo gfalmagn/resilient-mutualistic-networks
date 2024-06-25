@@ -47,7 +47,7 @@ def generate_glv_matrix_cascade(N, fA, fM, fF, fC, pA=0.1, pM=0, pF=0, pC=0):
     n_a = int(P * N * (N - 1) / 2)  # number of connected pairs (edges) [SH]
 
     # Construct list of all pairs of species
-    pairs = np.array([(i, j) for i in range(N) for j in range(i + 1, N)], dtype="f,f")
+    pairs = np.array([(i, j) for i in range(N) for j in range(i + 1, N)], dtype="i,i")
 
     # Pick out P links randomly
     sel = np.random.choice(pairs, size=n_a, replace=False)
@@ -88,14 +88,13 @@ def generate_glv_matrix_cascade(N, fA, fM, fF, fC, pA=0.1, pM=0, pF=0, pC=0):
     # Resources of competitors (i.e. who they compete with)
     r_c = {}
     for i, j in interactions['c']:
-        # Facilitations act up the food chain (i facilitates j)
         if i not in r_c:
-            r_f[i] = set()
+            r_c[i] = set()
         if j not in r_c:
-            r_f[j] = set()
-        r_f[i].add(j)
-        r_f[j].add(i)
-    r_f = {k: list(v) for k, v in r_f.items()}
+            r_c[j] = set()
+        r_c[i].add(j)
+        r_c[j].add(i)
+    r_c = {k: list(v) for k, v in r_c.items()}
 
     # Resources of antagonist predators
     r_a = {}
@@ -130,7 +129,7 @@ def generate_glv_matrix_cascade(N, fA, fM, fF, fC, pA=0.1, pM=0, pF=0, pC=0):
         a[j, i] = - c[j, i] * fC * A[j, i] / np.sum(A[j, r_c[j]])
 
     # Fill in antagonisms
-    for i, j in antagonisms:
+    for i, j in interactions['a']:
         a[j, i] = g[j, i] * fA * A[j, i] / np.sum(A[j, r_a[j]]) # j (higher index) preys on i --> ensures directionality
         a[i, j] = - a[j, i] / g[j, i]
 
@@ -195,11 +194,12 @@ for pA in tqdm([0.2, 0.4, 0.5, 0.6, 0.8]):
         s = []
         for trial in range(100):
             r, a, X_eq = generate_lv_params(N, pA, pM, 0.1,0.1)
+            print(r)
 
             stable = stability(a, X_eq)
 
             s += [stable]
-        stabilities[(P, pM)] = np.mean(s)
+        stabilities[(pA, pM)] = np.mean(s)
 
 import pandas as pd
 
