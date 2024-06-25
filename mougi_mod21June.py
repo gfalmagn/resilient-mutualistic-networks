@@ -9,16 +9,7 @@ from scipy.linalg import solve_continuous_lyapunov
 def glv(X, A, r):
     return X * (r + A @ X)
 
-
-# def glv_holland_ii(X, r, n, h, fa, fm, A, mutualisms, antagonisms):
-#     """
-#     Calculate the population derivatives for a Holland type II functional response.
-#     """
-#     a = generate_holland_matrix_cascade(X, n, h, fa, fm, A, mutualisms, antagonisms)
-#     return X * (r + A @ X)
-
-
-def generate_glv_matrix_cascade(N, fA, fM, fF, P=0.1, pM=0, pF=0):
+def generate_glv_matrix_cascade(N, fA, fM, fF, fC, pA=0.1, pM=0, pF=0, pC=0):
     """
     Parameters:
         N: number of species
@@ -28,11 +19,13 @@ def generate_glv_matrix_cascade(N, fA, fM, fF, P=0.1, pM=0, pF=0):
             any positive number?
         fF: relative facilitation strength
             any pos num?
-        P: density of interaction matrix (= proportion of connected pairs [SH])
+        PA: density of antagonistic interactions
             float in [0, 1]
-        pM: probability of mutualistic interactions, within those P interactions
+        pM: density of mutualistic interactions
             float in [0, 1]
-        pF: probability of facilitation interactions, within those P interactions
+        pF: density of facilitation interactions
+            float in [0, 1]
+        pC: density of competitive interactions
             float in [0, 1]
     Return:
         a: the actual interaction matrix
@@ -41,8 +34,14 @@ def generate_glv_matrix_cascade(N, fA, fM, fF, P=0.1, pM=0, pF=0):
     e = np.random.uniform(0, 1, (N, N))  # mutualistic interaction efficiencies
     g = np.random.uniform(0, 1, (N, N))  # trophic interaction efficiencies
     f = np.random.uniform(0, 1, (N, N))  # facilitation interaction efficiencies
+    c = np.random.uniform(0, 1, (N, N))  # competitive interaction efficiencies
     A = np.random.uniform(0, 1, (N, N))  # potential preference for the interaction partners
     np.fill_diagonal(A, 0)
+
+    P = pA + pF + pC + pM
+    assert P <= 1, "Total interaction density must be less than 1, but you entered {} + {} + {} + {} = {}".format(
+        pA, pM, pF, pC, P
+    )
 
     a = np.zeros((N, N))
     n_a = int(P * N * (N - 1) / 2)  # number of connected pairs (edges) [SH]
@@ -50,24 +49,20 @@ def generate_glv_matrix_cascade(N, fA, fM, fF, P=0.1, pM=0, pF=0):
     # Construct list of all pairs of species
     pairs = np.array([(i, j) for i in range(N) for j in range(i + 1, N)])
 
-    # Pick out P antagonistic links randomly
-    sel = np.random.choice(len(pairs), size=n_a, replace=False)
-    antagonisms = pairs[sel]
-    np.savetxt("antagonism.txt", antagonisms, fmt="%i")
+    # Pick out P links randomly
+    sel = np.random.choice(pairs, size=n_a, replace=False)
 
-    # Pick out mutualisms and facilitations from antagonisms
-    n_alt = int((pM + pF) * n_a)
-    alt_interactions = np.random.choice(len(antagonisms), size=n_alt, replace=False)
-    mutual_interactions = alt_interactions[:int(pM * n_a)]
-    facilitation_interactions = alt_interactions[int(pM * n_a):]
-    mutualisms = antagonisms[mutual_interactions]
-    facilitations = antagonisms[facilitation_interactions]
-    np.savetxt("mutualisms.txt", mutualisms, fmt="%i")
-    np.savetxt("facilitations.txt", facilitations, fmt="%i")
+    # Pick out interactions for each type
+    interactions = {}
+    for label, p in zip('afcm', [pA, pF, pC, pM]):
+        size = int(p * n_a)
+        interactions[label] = np.random.choice(sel, size=size, replace=False)
+        sel = set(sel).difference(interactions[label])
+        sel = np.array(list(sel))
 
-    # Resources of mutualists
+    # Capture mutualistic interaction resources
     r_m = {}
-    for i, j in mutualisms:
+    for i, j in interactions['m']:
         if i not in r_m:
             r_m[i] = set()
         if j not in r_m:
@@ -78,38 +73,39 @@ def generate_glv_matrix_cascade(N, fA, fM, fF, P=0.1, pM=0, pF=0):
 
     # To make the facilitations random, randomly shuffle each (i, j)
     # pair in the list [(i, j) ... ] of facilitations here.
+    np.random.shuffle(interactions['f'])
 
     # Resources of facilitators (i.e. who they facilitate)
     r_f = {}
-    for i, j in facilitations:
+    for i, j in interactions['f']:
         # Facilitations act up the food chain (i facilitates j)
         if i not in r_f:
             r_f[i] = set()
         r_f[i].add(j)
     r_f = {k: list(v) for k, v in r_f.items()}
 
-    # Remove selected mutualisms and facilitations from antagonisms
-    mask = np.ones(len(antagonisms), dtype=bool)
-    mask[mutual_interactions] = False
-    mask[facilitation_interactions] = False
-    antagonisms = antagonisms[mask]
-    np.savetxt("antagonism_mask.txt", antagonisms, fmt="%i")
-
-    """
-    Here is where you would select e.g. pF facilitation interactions
-    or pC competitive interactions
-    """
+    # Resources of competitors (i.e. who they compete with)
+    r_c = {}
+    for i, j in interactions['c']:
+        # Facilitations act up the food chain (i facilitates j)
+        if i not in r_c:
+            r_f[i] = set()
+        if j not in r_c:
+            r_f[j] = set()
+        r_f[i].add(j)
+        r_f[j].add(i)
+    r_f = {k: list(v) for k, v in r_f.items()}
 
     # Resources of antagonist predators
     r_a = {}
-    for i, j in antagonisms:
+    for i, j in interactions['a']:
         if j not in r_a:
             r_a[j] = set()
         r_a[j].add(i)
     r_a = {k: list(v) for k, v in r_a.items()}
 
     # Fill in mutualisms
-    for i, j in mutualisms:
+    for i, j in interactions['m']:
         # (strength of interaction i>j) = (efficiency [random]) * (mutualism strength [random but
         # the same for all mutualistic interactions]) * (proportion of i's mutualistic interactions
         # which are with j)
@@ -117,13 +113,20 @@ def generate_glv_matrix_cascade(N, fA, fM, fF, P=0.1, pM=0, pF=0):
         a[j, i] = e[j, i] * fM * A[j, i] / np.sum(A[j, r_m[j]])
 
     # Fill in facilitations
-    for i, j in facilitations:
+    for i, j in interactions['f']:
         # (strength of interaction i>j) = (efficiency [random]) * (facilitation strength [random but
         # the same for all facilitation interactions]) * (proportion of i's facilitation interactions
         # which are with j)
         a[i, j] = 0
         a[j, i] = f[j, i] * fF * A[i, j] / np.sum(A[i, r_f[i]])
 
+    # Fill in competitions
+    for i, j in interactions['c']:
+        # (strength of interaction i>j) = (efficiency [random]) * (competition strength [random but
+        # the same for all competition interactions]) * (proportion of i's competition interactions
+        # which are with j)
+        a[i, j] = - c[i, j] * fC * A[i, j] / np.sum(A[i, r_c[i]])
+        a[j, i] = - c[j, i] * fC * A[j, i] / np.sum(A[j, r_c[j]])
 
     # Fill in antagonisms
     for i, j in antagonisms:
@@ -137,7 +140,7 @@ def generate_glv_matrix_cascade(N, fA, fM, fF, P=0.1, pM=0, pF=0):
     return a
 
 
-def generate_lv_params(N, P, pM=0, pF=0):
+def generate_lv_params(N, pA=0.1, pM=0, pF=0, pC=0):
     """
     Generate the parameters to construct the basic GLV interaction matrix.
     """
@@ -145,8 +148,9 @@ def generate_lv_params(N, P, pM=0, pF=0):
     fA = 2
     fM = 1
     fF = 1
+    fC = 0.5
 
-    a = generate_glv_matrix_cascade(N, fA, fM, fF, P, pM, pF)
+    a = generate_glv_matrix_cascade(N, fA, fM, fF, fC, pA, pM, pF, pC)
 
     X_eq = np.random.uniform(0, 1, N)
 
@@ -158,15 +162,6 @@ def generate_lv_params(N, P, pM=0, pF=0):
     r = fsolve(glv_r, r0)
 
     return r, a, X_eq
-
-
-def generate_holling_params(N, P, pM):
-    pass
-
-
-def generate_holling_matrix_cascade(X, n, h, fa, fm, A, mutualisms, antagonisms):
-    pass
-
 
 def stability(a, X_eq):
     # Calculate M, the community matrix, i.e. the Jacobian at X_eq
