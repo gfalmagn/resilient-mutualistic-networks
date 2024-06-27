@@ -31,10 +31,11 @@ def generate_glv_matrix_cascade(N, fA, fM, fF, fC, pA=0.1, pM=0, pF=0, pC=0):
         a: the actual interaction matrix
             (N x N) matrix
     """
-    e = np.random.uniform(0, 1, (N, N))  # mutualistic interaction efficiencies
-    g = np.random.uniform(0, 1, (N, N))  # trophic interaction efficiencies
-    f = np.random.uniform(0, 1, (N, N))  # facilitation interaction efficiencies
-    c = np.random.uniform(0, 1, (N, N))  # competitive interaction efficiencies
+    const_efficiency = 0.5 # to make all efficiencies random as in the paper, use -1 here
+    e = np.full((N, N), const_efficiency) if const_efficiency >= 0 else np.random.uniform(0, 1, (N, N))  # mutualistic interaction efficiencies
+    g = np.full((N, N), const_efficiency) if const_efficiency >= 0 else np.random.uniform(0, 1, (N, N))  # trophic interaction efficiencies
+    f = np.full((N, N), const_efficiency) if const_efficiency >= 0 else np.random.uniform(0, 1, (N, N))  # facilitation interaction efficiencies
+    c = np.full((N, N), const_efficiency) if const_efficiency >= 0 else np.random.uniform(0, 1, (N, N))  # competitive interaction efficiencies
     A = np.random.uniform(0, 1, (N, N))  # potential preference for the interaction partners
     np.fill_diagonal(A, 0)
 
@@ -60,6 +61,11 @@ def generate_glv_matrix_cascade(N, fA, fM, fF, fC, pA=0.1, pM=0, pF=0, pC=0):
         # get pairs that are in sel but not in interactions
         remainingpairs = np.logical_not(np.isin(sel, interactions[label]))
         sel = sel[remainingpairs]
+    # facilitation interaction are set to go either direction: j to i (so a[i,j] non-zero); or i to j (a[j,i] non-zero)
+    for k in range(len(interactions['f'])):
+        # for half of the facilitation interactions, reverse from i->j to j->i 
+        if np.random.rand() > 0.5:
+            interactions['f'][k] = (interactions['f'][k][1], interactions['f'][k][0])
 
     # Capture mutualistic interaction resources
     r_m = {}
@@ -74,15 +80,15 @@ def generate_glv_matrix_cascade(N, fA, fM, fF, fC, pA=0.1, pM=0, pF=0, pC=0):
 
     # To make the facilitations random, randomly shuffle each (i, j)
     # pair in the list [(i, j) ... ] of facilitations here.
-    np.random.shuffle(interactions['f'])
+    np.random.shuffle(interactions['f']) # why is this necessary?
 
     # Resources of facilitators (i.e. who they facilitate)
     r_f = {}
     for i, j in interactions['f']:
-        # Facilitations act up the food chain (i facilitates j)
-        if i not in r_f:
-            r_f[i] = set()
-        r_f[i].add(j)
+        # Facilitations act up the food chain (i facilitates j) #not anymore because the direction of facilitation was randomized
+        if j not in r_f:
+            r_f[j] = set()
+        r_f[j].add(i) # j facilitates i, non-zero a[i,j]
     r_f = {k: list(v) for k, v in r_f.items()}
 
     # Resources of competitors (i.e. who they compete with)
@@ -116,9 +122,15 @@ def generate_glv_matrix_cascade(N, fA, fM, fF, fC, pA=0.1, pM=0, pF=0, pC=0):
     for i, j in interactions['f']:
         # (strength of interaction i>j) = (efficiency [random]) * (facilitation strength [random but
         # the same for all facilitation interactions]) * (proportion of i's facilitation interactions
-        # which are with j)
-        a[i, j] = 0
-        a[j, i] = f[j, i] * fF * A[i, j] / np.sum(A[i, r_f[i]])
+        # which are with j)interactions
+
+        # Multiply the strength by 2 so that it's equivalent to other interactions where the two directional edges are filled
+        # Only j facilitates i. The order of i and j was randomized before
+        # the normalization is motivated by a fixed budget of facilitation that the facilitator j can perform
+        a[i, j] = 2 * f[i, j] * fF * A[i, j] / np.sum(A[r_f[j], j])
+        # only one-directional
+        a[j, i] = 0
+            
 
     # Fill in competitions
     for i, j in interactions['c']:
@@ -145,10 +157,10 @@ def generate_lv_params(N, pA=0.1, pM=0, pF=0, pC=0):
     Generate the parameters to construct the basic GLV interaction matrix.
     """
 
-    fA = 2
+    fA = 1
     fM = 1
     fF = 1
-    fC = 0.5
+    fC = 1
 
     a = generate_glv_matrix_cascade(N, fA, fM, fF, fC, pA, pM, pF, pC)
 
@@ -186,24 +198,29 @@ def global_stability(a):
     return is_diagonal and is_positive_diagonal
 
 # Example usage
-N = 20  # Number of species
+N = 50  # Number of species
+ntrial = 300 # number of sampled "models" for a given set of parameter
 
 stabilities = {}
-for pA in tqdm([0.2, 0.4, 0.5, 0.6, 0.8]):
-    for pM in np.arange(0, 1, 0.05):
+for P in tqdm([0.1, 0.3, 0.5, 0.7, 0.9]):
+    for PM in np.arange(0, 1, 0.05):
+        pM = P*PM
+        pA = P*(1-PM)
         s = []
-        for trial in range(100):
-            r, a, X_eq = generate_lv_params(N, pA, pM, 0.1,0.1)
-            print(r)
+        for trial in range(300):
+            r, a, X_eq = generate_lv_params(N, pA, pM, 0.,0.)
+            #print(r)
 
             stable = stability(a, X_eq)
 
             s += [stable]
-        stabilities[(pA, pM)] = np.mean(s)
+        stabilities[(P, PM)] = np.mean(s)
 
 import pandas as pd
 
+print(pd.Series(stabilities))
 df = pd.Series(stabilities).unstack().T
+print(df)
 
 
 df.plot(marker='o', cmap='cool', mec='k')
