@@ -27,13 +27,13 @@ def randomize_interaction_matrix(adj, type, strength=1.0):
     A = np.random.uniform(0, 1, (N, N))  # potential preference for the interaction partners
     np.fill_diagonal(A, 0)
 
-    count = 0
+    count_links = 0
     interactions = []
     for i in range(adj.shape[0]):
         for j in range(adj.shape[1]):
             if adj[i, j] == 1:
                 interactions.append([i, j])
-                count += 1
+                count_links += 1
 
     monodirectional = []
     bidirectional = []
@@ -49,14 +49,11 @@ def randomize_interaction_matrix(adj, type, strength=1.0):
         if [i, j] not in canibalism and [i, j] not in bidirectional and [j, i] not in bidirectional_twin:
             if j > i:
                 monodirectional.append([i, j])
-    # print("Monodirectional:", monodirectional)
-    # print("Bidirectional:", bidirectional)
-    # print("Canibalism:", canibalism)
 
-    n = 4623 #int((N * (N - 1)) / 2)    # num of entries in the upper triangle
-    # print("n:", n)
+    n = 4623    # num of links in the Chilean data
     num_interactions = 0
     proportion = 0.
+
     if type == 'a':     # Tropic interactions
         fA = strength
         interactions = monodirectional
@@ -73,6 +70,7 @@ def randomize_interaction_matrix(adj, type, strength=1.0):
             a_rand[i, j] = - a_rand[j, i] / e[j, i]
         num_interactions = len(interactions)
         proportion = num_interactions / n
+
     elif type == 'f':   # Facilitating interactions
         fF = strength
         interactions = monodirectional
@@ -97,6 +95,7 @@ def randomize_interaction_matrix(adj, type, strength=1.0):
             a_rand[j, i] = 0
         num_interactions = len(interactions)
         proportion = num_interactions / n
+
     elif type == "m":
         fM = strength
         interactions = bidirectional
@@ -119,6 +118,7 @@ def randomize_interaction_matrix(adj, type, strength=1.0):
             a_rand[j, i] = e[j, i] * fM * A[j, i] / np.sum(A[j, r_m[j]])
         num_interactions = len(interactions)
         proportion = num_interactions / n
+
     elif type == 'c':   # Competitive interactions
         fC = strength
         interactions = bidirectional + monodirectional
@@ -141,12 +141,11 @@ def randomize_interaction_matrix(adj, type, strength=1.0):
             a_rand[j, i] = - e[j, i] * fC * A[j, i] / np.sum(A[j, r_c[j]])
         num_interactions = len(interactions)
         proportion = num_interactions / n
-    # print(num_interactions, f"links lead to p = {proportion:.4f}")
+    print(num_interactions, f"links lead to p = {proportion:.4f}")
 
     # Fill in s_i values (i.e. a_ii), which must be negative
     for i in range(N):
         a_rand[i, i] = - np.random.uniform()
-    # print(count, "links in total")
 
     return a_rand
 
@@ -184,7 +183,7 @@ num_species = 106
 num_trials = 300
 count = 0
 for run in range(num_trials):
-    multiinteraction = np.zeros((num_species, num_species))
+    multi_interaction = np.zeros((num_species, num_species))
     for interaction_code in list(interaction_type.keys()):
         # print(f"({interaction_code})", interaction_type[interaction_code])
         file_name = f"chilean_{interaction_type[interaction_code]}"
@@ -195,18 +194,16 @@ for run in range(num_trials):
             adj.append([int(elt) for elt in line[2:]])
         adj = np.reshape(adj, (len(adj), len(adj)))
         a_rand = randomize_interaction_matrix(adj, type=interaction_code)
-        multiinteraction += a_rand
-    # print(multiinteraction)
-    r, a, X_eq = generate_glv_params(num_species, multiinteraction)
+        multi_interaction += a_rand
+    r, a, X_eq = generate_glv_params(num_species, multi_interaction)
     stable = stability(a, X_eq)
     if stable:
         count += 1
-        np.savetxt(f"{data_path}/output/stable/chilean_multiinteraction_rand{run}.txt", multiinteraction, fmt="%f")
+        np.savetxt(f"{data_path}/output/stable/chilean_multiinteraction_rand{run}.txt", multi_interaction, fmt="%f")
     else:
-        np.savetxt(f"{data_path}/output/unstable/chilean_multiinteraction_rand{run}.txt", multiinteraction, fmt="%f")
+        np.savetxt(f"{data_path}/output/unstable/chilean_multiinteraction_rand{run}.txt", multi_interaction, fmt="%f")
 print(f"{count} out of {num_trials} networks are stable!")
 
 
 ### To do : Visualization of the stability assessment result!!
-
 
