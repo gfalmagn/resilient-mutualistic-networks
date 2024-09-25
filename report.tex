@@ -1,0 +1,52 @@
+\documentclass[]{article}
+
+% Add any additional packages you need here
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+% Document metadata
+\title{Combined effects of interaction diversity and structure on ecological networks }
+\author{}
+\date{}  % Remove this line if you want to include the current date
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+\end{abstract}
+
+\section{Introduction}
+Network analysis has become an essential tool in ecological research, allowing scientists to move beyond individual species dynamics and investigate the complex interactions within ecological communities on a larger scale. Traditional ecological studies have primarily emphasized antagonistic interactions, such as competition and predation, as the key factors structuring ecosystem diversity and function. However, ecological interactions encompass a broader spectrum, including positive interactions like mutualism and facilitation, which play a central role in ecological and evolutionary processes. Despite this, both scientific and public understanding often continue to focus on negative interactions, such as competition and consumer control. Moreover, the majority of ecological network studies typically examine a single type of interaction, overlooking the intricate dynamics that arise when different interactions coexist. The integration of antagonistic and positive networks may significantly impact their stability, resilience to environmental changes, and overall ecosystem functioning.
+
+In this study, address this gap by integrating four types of interactions — competition, predation, mutualism, and facilitation — within the same ecological network. Our primary focus is to understand how this integration influences network stability – specifically, how will the probability of a stable equilibrium change as we incorporate diverse interaction types? Building on the simulation work of Mougi and Kondoh (2012, \textit{Science}), we create simplified representations of these interaction types in a Generalized Lotka-Volterra model of population change. Working in the random interaction matrix tradition started by May (1972), we randomly sample networks with fixed proportions of each interaction type and assess the proportion of these communities with a stable internal equilibrium under the GLV dynamics.
+
+
+\section{Methodology}
+The Generalized Lotka-Volterra (GLV) equations provide a simple modeling framework for the population dynamics of a community of interacting species. 
+
+Mougi and Kondoh (2012) describe a simple method for simulating ecological interaction networks with mixes of trophic (i.e. predation) and mutualistic interactions. 
+
+We operationalize these interactions according to their corresponding signs in the interaction matrix:
+\begin{itemize}
+    \item \textit{mutualism}: $a_{ij} > 0, a_{ji} = > 0$,
+    \item \textit{facilitation}: $a_{ij} > 0, a_{ji} = 0$,
+    \item \textit{competition}: $a_{ij} < 0, a_{ji} < 0$,
+    \item \textit{predation}:
+\end{itemize}
+
+\section{Results}
+
+
+
+Our findings reveal that population dynamics can remain stable even with the presence of mutualistic or facilitative interactions. Although networks with low proportions of positive interactions are unstable, those with higher proportions of mixed interactions, including positive or facilitative interactions, exhibit high stability. We also find that competitive interactions are crucial for the coexistence of facilitation and mutualism. Furthermore, we demonstrate that realistic, diverse interactions encompassing all four interaction types can achieve stability in highly connected networks.
+
+We validated our findings using an empirically derived network of 106 species from a Chilean intertidal ecosystem (Kefi et al. 2016, PLOS Biology), generating 300 structurally similar networks with varied interaction strengths and resource availability. 298 out of 300 networks were stable, indicating that stability in our model may correspond to stability in real-world communities.
+
+\section{Discussion}
+
+\section{Conclusion}
+Future research will delve into the interplay between these results and different network structures, such as assortativity (degree of specialization vs. generalization within interactions), modularity (sub-community structure), and centrality (identification of keystone species). Additionally, we plan to extend our analysis to include resilience to ecologically relevant network disturbances, such as species loss, species additions due to range shifts and invasive species, and functional responses where changes in nodes (species abundance) modify edge weights (interaction strengths). Our study underscores the importance of considering multiple types of interactions in ecological networks to fully understand their stability and resilience, offering significant contributions to theoretical ecology by merging sophisticated modeling approaches with empirical data.
+
+\end{document}
