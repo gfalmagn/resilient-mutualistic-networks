@@ -40,9 +40,11 @@ def generate_glv_matrix_cascade(N, fA, fM, fF, fC, pA=0.1, pM=0, pF=0, pC=0):
     np.fill_diagonal(A, 0)
 
     P = pA + pF + pC + pM
-    assert P <= 1, "Total interaction density must be less than 1, but you entered {} + {} + {} + {} = {}".format(
+    assert P <= 1+1e-5, "Total interaction density must be less than 1, but you entered {} + {} + {} + {} = {}".format(
         pA, pM, pF, pC, P
     )
+    if P > 1:
+        pA -= 1e-5
 
     a = np.zeros((N, N))
     n_a = int(P * N * (N - 1) / 2)  # number of connected pairs (edges) [SH]
@@ -77,10 +79,6 @@ def generate_glv_matrix_cascade(N, fA, fM, fF, fC, pA=0.1, pM=0, pF=0, pC=0):
         r_m[i].add(j)
         r_m[j].add(i)
     r_m = {k: list(v) for k, v in r_m.items()}
-
-    # To make the facilitations random, randomly shuffle each (i, j)
-    # pair in the list [(i, j) ... ] of facilitations here.
-    np.random.shuffle(interactions['f']) # why is this necessary?
 
     # Resources of facilitators (i.e. who they facilitate)
     r_f = {}
@@ -181,7 +179,7 @@ def stability(a, X_eq):
     # M_ij = X_eq_i & a_ij
     M = X_eq * a
     eigenvalues, _ = eig(M)
-    return all(np.real(eigenvalues) < 0)
+    return np.all(np.real(eigenvalues) < 0)
 
 def global_stability(a):
     # Test whether the interaction matrix is Lyapunov-diagonally stable,
@@ -199,8 +197,9 @@ def global_stability(a):
 
 # Example usage
 N = 50  # Number of species
-ntrial = 300 # number of sampled "models" for a given set of parameter
+ntrial = 100 # number of sampled "models" for a given set of parameter
 
+'''
 stabilities = {}
 for P in tqdm([0.1, 0.3, 0.5, 0.7, 0.9]):
     for PM in np.arange(0, 1, 0.05):
@@ -217,7 +216,6 @@ for P in tqdm([0.1, 0.3, 0.5, 0.7, 0.9]):
         stabilities[(P, PM)] = np.mean(s)
 
 import pandas as pd
-
 print(pd.Series(stabilities))
 df = pd.Series(stabilities).unstack().T
 print(df)
@@ -232,3 +230,118 @@ plt.xlabel("$p_M$ (mutualism)")
 plt.ylabel("Fraction stable equilibria")
 plt.title(f"N={N}", fontsize=14)
 plt.savefig(f"mougi_fig1rep_N{N}.png", bbox_inches="tight")
+'''
+
+def stability_vs_2D(xint='a', yint='m', pA=0.1, pM=0.1, pF=0.1, pC=0.1, Nsp=N, mesh=20):
+
+    # dealing with the two other fixed interactions
+    allinters = ['a','m','f','c']
+    allinters.remove(xint)
+    allinters.remove(yint)
+    p2,p3 = allinters
+    pvals = {'a':pA, 'm':pM, 'f':pF, 'c':pC}
+    pstr = {'a':'pA', 'm':'pM', 'f':'pF', 'c':'pC'}
+    p2str = pstr[p2]+'='+"{:.2f}".format(pvals[p2])
+    p3str = pstr[p3]+'='+"{:.2f}".format(pvals[p3])
+
+    # x,y,z receptacles
+    nx=mesh
+    ny=mesh
+    maxxy = 1 - pvals[p2] - pvals[p3]
+    x = np.linspace(0,maxxy,nx)
+    y = np.linspace(0,maxxy,nx)
+    X, Y = np.meshgrid(x,y)
+    Z = np.zeros((nx,ny))
+    # function to get the values of p for all types of interactions
+    def actual_p(p, useinx, useiny):
+        return X[i,j] if useinx else (Y[i,j] if useiny else p)
+    
+    # get stability for all x,y points
+    ntrials = 200
+    for i in range(nx):
+        for j in range(ny):
+            pa = actual_p(pA, xint=='a', yint=='a')
+            pm = actual_p(pM, xint=='m', yint=='m')
+            pf = actual_p(pF, xint=='f', yint=='f')
+            pc = actual_p(pC, xint=='c', yint=='c')
+            if pa+pm+pf+pc > 1:
+                Z[i,j] = np.nan
+            else:
+                s = np.zeros(ntrials)
+                for tr in range(ntrials):
+                    X[i,j],Y[i,j]
+                    r, a, X_eq = generate_lv_params(Nsp, pa, pm, pf, pc)
+                    s[tr] = stability(a, X_eq)
+                Z[i,j] = np.mean(s)
+    
+    # esthetics
+    xlabel = 'antagonism' if xint=='a' else 'mutualism' if xint=='m' else 'facilitation' if xint=='f' else 'competitive'
+    ylabel = 'antagonism' if yint=='a' else 'mutualism' if yint=='m' else 'facilitation' if yint=='f' else 'competitive'
+    plt.figure()
+    plt.title(p2str+', '+p3str)
+    plt.pcolor(X, Y, Z)
+    plt.xlabel('p('+xlabel+')')
+    plt.ylabel('p('+ylabel+')')
+    #plt.xlim([0,0.8])
+    #plt.ylim([0,0.8])
+    cbar = plt.colorbar()
+    cbar.set_label('stability (fraction of stable trials)')
+    plt.savefig('stability_vs_p'+xlabel+'_p'+ylabel+'_'+p2str+'_'+p3str+'_N'+str(Nsp)+'.png')
+
+""" 
+for pf in [0,0.1,0.2,0.4,0.6]:
+    print('pf=',pf)
+    stability_vs_2D(xint='a', yint='m', Nsp=50, pF=pf,pC=0)
+
+for pc in [0,0.1,0.2,0.4,0.6]:
+    print('pc=',pc)
+    stability_vs_2D(xint='a', yint='m', Nsp=50, pF=0,pC=pc)
+
+for pa in [0.1,0.2,0.4,0.6]:
+    print('pa=',pa)
+    stability_vs_2D(xint='f', yint='m', Nsp=50, pA=pa,pC=0)
+    stability_vs_2D(xint='f', yint='c', Nsp=50, pA=pa,pM=0)
+
+for pm in [0,0.1,0.2,0.4,0.6]:
+    print('pm=',pm)
+    stability_vs_2D(xint='f', yint='c', Nsp=50, pA=0.3,pM=pm)
+
+stability_vs_2D(xint='f', yint='m', Nsp=50, pA=0.2,pC=0.1)
+stability_vs_2D(xint='f', yint='m', Nsp=50, pA=0.2,pC=0.2)
+stability_vs_2D(xint='f', yint='m', Nsp=50, pA=0.2,pC=0.4)
+stability_vs_2D(xint='f', yint='m', Nsp=50, pA=0.1,pC=0.2)
+ """
+
+#print('fm')
+#stability_vs_2D(xint='f', yint='m', Nsp=106, pA=0.05,pC=0.33)
+#print('ac')
+#stability_vs_2D(xint='a', yint='c', Nsp=106, pM=0.001,pF=0.024)
+print('am')
+stability_vs_2D(xint='a', yint='m', Nsp=106, pF=0.024,pC=0.33,mesh=15)
+print('af')
+stability_vs_2D(xint='a', yint='f', Nsp=106, pM=0.001,pC=0.33,mesh=15)
+
+
+""" 
+for pm in [0,0.1,0.2,0.4,0.6]:
+    print('pm=',pm)
+    stability_vs_2D(xint='a', yint='f', Nsp=50, pM=pm,pC=0)
+    if pm>0 and pm<0.5:
+        print('pm and pc=',pm)
+        stability_vs_2D(xint='a', yint='f', Nsp=50, pM=pm,pC=pm)
+
+for p in [0,0.1,0.2,0.4]:
+    print('pf and pc=',p)
+    stability_vs_2D(xint='a', yint='m', Nsp=50, pF=p,pC=p)
+    
+for pm in [0,0.1,0.2,0.4,0.6]:
+    print('pm=',pm)
+    stability_vs_2D(xint='a', yint='c', Nsp=50, pM=pm, pF=0)
+
+for p in [0,0.1,0.2,0.4]:
+    print('pf and pm=',p)
+    stability_vs_2D(xint='f', yint='m', Nsp=50, pF=p,pM=p)
+"""
+
+
+#stability_vs_2D(xint='f', yint='c', Nsp=50)
