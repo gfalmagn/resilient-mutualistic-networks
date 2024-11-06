@@ -61,8 +61,8 @@ def generate_glv_matrix_cascade(N, fA, fM, fF, fC, pA=0.1, pM=0, pF=0, pC=0):
         size = int(p * n_a)
         interactions[label] = np.random.choice(sel, size=size, replace=False)
         # get pairs that are in sel but not in interactions
-        remainingpairs = np.logical_not(np.isin(sel, interactions[label]))
-        sel = sel[remainingpairs]
+        remaining_pairs = np.logical_not(np.isin(sel, interactions[label]))
+        sel = sel[remaining_pairs]
     # facilitation interaction are set to go either direction: j to i (so a[i,j] non-zero); or i to j (a[j,i] non-zero)
     for k in range(len(interactions['f'])):
         # for half of the facilitation interactions, reverse from i->j to j->i 
