@@ -79,7 +79,7 @@ def check_stability(jacobian_matrix, plot=False):
 
 # Parameters
 N = 100  # Number of species
-pA, pM, pF, pC = 0.3, 0.4, 0., 0.  # Interaction type proportions
+pA, pM, pF, pC = 0.3, 0.4, 0.1, 0.2  # Interaction type proportions
 
 stability = []
 for _ in range(100):
