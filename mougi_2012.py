@@ -63,12 +63,14 @@ def generate_glv_matrix_cascade(N, fA, fM, fF, fC, pA=0.1, pM=0, pF=0, pC=0):
         # get pairs that are in sel but not in interactions
         remaining_pairs = np.logical_not(np.isin(sel, interactions[label]))
         sel = sel[remaining_pairs]
+    ''' FACILITATION NEEDS TO BE REWORKED'''
     # facilitation interaction are set to go either direction: j to i (so a[i,j] non-zero); or i to j (a[j,i] non-zero)
     for k in range(len(interactions['f'])):
         # for half of the facilitation interactions, reverse from i->j to j->i 
         if np.random.rand() > 0.5:
             interactions['f'][k] = (interactions['f'][k][1], interactions['f'][k][0])
 
+    ''' MUTUALISMS MAY NEED TO BE REWORKED'''
     # Capture mutualistic interaction resources
     r_m = {}
     for i, j in interactions['m']:
@@ -82,8 +84,10 @@ def generate_glv_matrix_cascade(N, fA, fM, fF, fC, pA=0.1, pM=0, pF=0, pC=0):
 
     # Resources of facilitators (i.e. who they facilitate)
     r_f = {}
+    ''' FACILITATION NEEDS TO BE REWORKED'''
     for i, j in interactions['f']:
-        # Facilitations act up the food chain (i facilitates j) #not anymore because the direction of facilitation was randomized
+        # Facilitations act up the food chain (i facilitates j) #not anymore because the direction of facilitation was randomized 
+        '''????'''
         if j not in r_f:
             r_f[j] = set()
         r_f[j].add(i) # j facilitates i, non-zero a[i,j]
@@ -107,11 +111,14 @@ def generate_glv_matrix_cascade(N, fA, fM, fF, fC, pA=0.1, pM=0, pF=0, pC=0):
             r_a[j] = set()
         r_a[j].add(i)
     r_a = {k: list(v) for k, v in r_a.items()}
-
+    
+    ''' NOTE: PREFERENCE MATRIX A NEEDS TO BE FIXED, as does fM'''
     # Fill in mutualisms
     for i, j in interactions['m']:
-        # (strength of interaction i>j) = (efficiency [random]) * (mutualism strength [random but
-        # the same for all mutualistic interactions]) * (proportion of i's mutualistic interactions
+        # (strength of interaction i>j) = (efficiency [random]) 
+        # * (mutualism strength [random but
+        # the same for all mutualistic interactions]) --- NEEDS TO BE FIXED
+        # * (proportion of i's mutualistic interactions
         # which are with j)
         a[i, j] = e[i, j] * fM * A[i, j] / np.sum(A[i, r_m[i]])
         a[j, i] = e[j, i] * fM * A[j, i] / np.sum(A[j, r_m[j]])
