@@ -32,83 +32,65 @@ class GLVmodel(object):
         Returns:
             a: the interaction matrix (N x N)
         """
-        const_efficiency = 0.5
-        e = np.full((self.N, self.N), const_efficiency) if const_efficiency >= 0 else np.random.uniform(0, 1, (self.N, self.N))
-        g = np.full((self.N, self.N), const_efficiency) if const_efficiency >= 0 else np.random.uniform(0, 1, (self.N, self.N))
-        f = np.full((self.N, self.N), const_efficiency) if const_efficiency >= 0 else np.random.uniform(0, 1, (self.N, self.N))
-        c = np.full((self.N, self.N), const_efficiency) if const_efficiency >= 0 else np.random.uniform(0, 1, (self.N, self.N))
+        a = np.zeros((self.N, self.N))
+
+        # Conversion efficiency when i utilizes j in the corresponding interaction:
+        # "g": antagonism; "f": facilitation; "c": competition; "e": mutualism
+        const_efficiency = 0.
+        g = np.full((self.N, self.N), const_efficiency) if const_efficiency > 0 else np.random.uniform(0, 1, (self.N, self.N))
+        f = np.full((self.N, self.N), const_efficiency) if const_efficiency > 0 else np.random.uniform(0, 1, (self.N, self.N))
+        c = np.full((self.N, self.N), const_efficiency) if const_efficiency > 0 else np.random.uniform(0, 1, (self.N, self.N))
+        e = np.full((self.N, self.N), const_efficiency) if const_efficiency > 0 else np.random.uniform(0, 1, (self.N, self.N))
         A = np.random.uniform(0, 1, (self.N, self.N))  # Potential interaction preferences
         np.fill_diagonal(A, 0)
 
         core_species = int(self.N * nestedness_level)
-        P = pA + pF + pC + pM
-        # assert P <= 1 + 1e-5, f"Total interaction density must be <= 1, but you entered {P}."
-        a = np.zeros((self.N, self.N))
-        n_a = int(P * self.N * (self.N - 1) / 2)    # number of connected pairs (edges)
+        interaction_matrix = np.zeros((self.N, self.N))
 
-        # Construct list of all pairs of species
-        pairs = np.array([(i, j) for i in range(self.N) for j in range(i + 1, self.N)], dtype="i,i")
+        P = pA + pF + pC + pM
+        assert P <= 1 + 1e-5, "Total interaction density must be less than 1, but you entered {} + {} + {} + {} = {}".format(
+            pA, pF, pC, pM, P)
+        if P > 1:
+            pA -= 1e-5
+        n_a = int(P * self.N * (self.N - 1) / 2)  # number of connected pairs (edges) [SH]
+
+        # Construct list of all pairs of species (`L_max` in Mougi & Kondo, Science 2012)
+        max_pairs = np.array([(i, j) for i in range(self.N) for j in range(i + 1, self.N)], dtype="i,i")
 
         # Pick out P links randomly
-        sel = np.random.choice(pairs, size=n_a, replace=False)
+        selected_pairs = np.random.choice(max_pairs, size=n_a, replace=False)
 
         # Pick out interactions for each type
         interactions = {}
         for label, p in zip('afcm', [pA, pF, pC, pM]):
             size = int(p * n_a)
-            interactions[label] = np.random.choice(sel, size=size, replace=False)
+            interactions[label] = np.random.choice(selected_pairs, size=size, replace=False)
             # get pairs that are in sel but not in interactions
-            sel = np.array([pair for pair in sel if pair not in interactions[label]])
-        #     remaining_pairs = np.logical_not(np.isin(sel, interactions[label]))
-        #     sel = sel[remaining_pairs]
-        # # facilitation interaction are set to go either direction: j to i (so a[i,j] non-zero); or i to j (a[j,i] non-zero)
-        # for k in range(len(interactions['f'])):
-        #     # for half of the facilitation interactions, reverse from i->j to j->i
-        #     if np.random.rand() > 0.5:
-        #         interactions['f'][k] = (interactions['f'][k][1], interactions['f'][k][0])
+            pairs_not_assigned = np.logical_not(np.isin(selected_pairs, interactions[label]))
+            remaining_pairs = selected_pairs[pairs_not_assigned]
 
-        # Capture mutualistic interaction resources
-        r_m = {}
-        for i, j in interactions['m']:
-            if i not in r_m:
-                r_m[i] = set()
-            if j not in r_m:
-                r_m[j] = set()
-            r_m[i].add(j)
-            r_m[j].add(i)
-        r_m = {k: list(v) for k, v in r_m.items()}
+        for x in "afcm":
+            for edge in interactions[x]:
+                i, j = edge
+                if (i < core_species or j < core_species):
+                    factor = 1.5  # Increase factor for core interactions
+                else:
+                    factor = 1.0
+                if x == "a":
+                    a[i, j] = factor * g[i, j] * self.fA * A[i, j] /
 
-        # Resources of facilitators (i.e. who they facilitate)
-        r_f = {}
-        for i, j in interactions['f']:
-            # Facilitations act up the food chain (i facilitates j) #not anymore because the direction of facilitation was randomized
-            if j not in r_f:
-                r_f[j] = set()
-            r_f[j].add(i)  # j facilitates i, non-zero a[i,j]
-        r_f = {k: list(v) for k, v in r_f.items()}
+                # Define higher interaction probability/strength for core species
+                # Select interaction type based on proportions
+                # elif interaction_type_ij == 'M':  # Mutualism (e.g., plant-pollinator)
+                #     interaction_matrix[i, j] = self.fM * factor
+                #     interaction_matrix[j, i] = self.fM * factor
+                # elif interaction_type_ij == 'F':  # Facilitation (one-sided benefit)
+                #     interaction_matrix[i, j] = self.fF * factor
+                #     interaction_matrix[j, i] = 0
+                # elif interaction_type_ij == 'C':  # Competition (both negative)
+                #     interaction_matrix[i, j] = -self.fC * factor
+                #     interaction_matrix[j, i] = -self.fC * factor
 
-        # Resources of competitors (i.e. who they compete with)
-        r_c = {}
-        for i, j in interactions['c']:
-            if i not in r_c:
-                r_c[i] = set()
-            if j not in r_c:
-                r_c[j] = set()
-            r_c[i].add(j)
-            r_c[j].add(i)
-        r_c = {k: list(v) for k, v in r_c.items()}
-
-        # Resources of antagonist predators
-        r_a = {}
-        for i, j in interactions['a']:
-            if j not in r_a:
-                r_a[j] = set()
-            r_a[j].add(i)
-        r_a = {k: list(v) for k, v in r_a.items()}
-
-        # Increase interaction strengths for core species
-        def is_core(i, j):
-            return (i < core_species or j < core_species)
 
         # Fill in mutualisms
         for i, j in interactions['m']:
