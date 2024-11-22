@@ -30,55 +30,72 @@ class GLVmodel(object):
             nested_factor: scaling factor for core interactions
 
         Returns:
-            a: the interaction matrix (N x N)
+            interaction_matrix: interaction matrix (N x N)
         """
-        a = np.zeros((self.N, self.N))
-
         # Conversion efficiency when i utilizes j in the corresponding interaction:
-        # "g": antagonism; "f": facilitation; "c": competition; "e": mutualism
-        const_efficiency = 0.
-        g = np.full((self.N, self.N), const_efficiency) if const_efficiency > 0 else np.random.uniform(0, 1, (self.N, self.N))
-        f = np.full((self.N, self.N), const_efficiency) if const_efficiency > 0 else np.random.uniform(0, 1, (self.N, self.N))
-        c = np.full((self.N, self.N), const_efficiency) if const_efficiency > 0 else np.random.uniform(0, 1, (self.N, self.N))
-        e = np.full((self.N, self.N), const_efficiency) if const_efficiency > 0 else np.random.uniform(0, 1, (self.N, self.N))
+        # "g": antagonism; "e": mutualism; "f": facilitation; "c": competition
+        const_efficiency = 0.5  # to make all efficiencies random as in the paper, use -1 here
+        g = np.full((self.N, self.N), const_efficiency) if const_efficiency >= 0 else np.random.uniform(0, 1, (self.N, self.N))
+        e = np.full((self.N, self.N), const_efficiency) if const_efficiency >= 0 else np.random.uniform(0, 1, (self.N, self.N))
+        f = np.full((self.N, self.N), const_efficiency) if const_efficiency >= 0 else np.random.uniform(0, 1, (self.N, self.N))
+        c = np.full((self.N, self.N), const_efficiency) if const_efficiency >= 0 else np.random.uniform(0, 1, (self.N, self.N))
         A = np.random.uniform(0, 1, (self.N, self.N))  # Potential interaction preferences
         np.fill_diagonal(A, 0)
 
-        core_species = int(self.N * nestedness_level)
-        interaction_matrix = np.zeros((self.N, self.N))
-
-        P = pA + pF + pC + pM
+        P = pA + pM + pF + pC
         assert P <= 1 + 1e-5, "Total interaction density must be less than 1, but you entered {} + {} + {} + {} = {}".format(
-            pA, pF, pC, pM, P)
+            pA, pM, pF, pC, P)
         if P > 1:
             pA -= 1e-5
-        n_a = int(P * self.N * (self.N - 1) / 2)  # number of connected pairs (edges) [SH]
+        N_pairs = int(P * self.N * (self.N - 1) / 2)  # number of connected pairs (edges) [SH]
 
         # Construct list of all pairs of species (`L_max` in Mougi & Kondo, Science 2012)
         max_pairs = np.array([(i, j) for i in range(self.N) for j in range(i + 1, self.N)], dtype="i,i")
 
         # Pick out P links randomly
-        selected_pairs = np.random.choice(max_pairs, size=n_a, replace=False)
+        selected_pairs = np.random.choice(max_pairs, size=N_pairs, replace=False)
 
         # Pick out interactions for each type
         interactions = {}
-        for label, p in zip('afcm', [pA, pF, pC, pM]):
-            size = int(p * n_a)
-            interactions[label] = np.random.choice(selected_pairs, size=size, replace=False)
+        for label, p in zip('amfc', [pA, pM, pF, pC]):
+            size = int(p * len(max_pairs))
+            interactions[label] = sorted(np.random.choice(selected_pairs, size=size, replace=False), key=lambda x: x[0])
             # get pairs that are in sel but not in interactions
             pairs_not_assigned = np.logical_not(np.isin(selected_pairs, interactions[label]))
             remaining_pairs = selected_pairs[pairs_not_assigned]
 
-        for x in "afcm":
-            for edge in interactions[x]:
-                i, j = edge
-                if (i < core_species or j < core_species):
-                    factor = 1.5  # Increase factor for core interactions
-                else:
-                    factor = 1.0
-                if x == "a":
-                    a[i, j] = factor * g[i, j] * self.fA * A[i, j] /
+        interaction_matrix = np.zeros((self.N, self.N))
+        # Set diagonal terms to ensure negative intraspecific interactions
+        for i in range(self.N):
+            interaction_matrix[i, i] = -np.random.uniform()  # Ensuring stability by negative self-regulation
 
+        print(A)
+        selected_pairs = [(1, 3), (0, 1), (1, 2), (2, 3)]
+        interactions = {"a": [(2, 3), (0, 1)], "m": [(1, 3), (1, 2)], "f": [], "c": []}
+        print(interactions)
+
+        core_species = int(self.N * nestedness_level)
+        for label in "amfc":
+            print(f"{label}:", interactions[label])
+            for edge in interactions[label]:
+                i, j = edge
+                # if (i < core_species or j < core_species):
+                #     factor = nested_factor  # Increase factor for core interactions
+                # else:
+                factor = 1.0
+                if label == "a":
+                    # j (higher index) preys on i --> ensures directionality
+                    resource_sum = 0
+                    for pair in interactions[label]:
+                        print(pair)
+                        if pair[0] == i:
+                            resource_sum += A[j, pair[0]]
+                        # elif pair[1] == j:
+                        #     resource_sum += A[pair[0], j]
+                    print(resource_sum)
+                    interaction_matrix[j, i] = factor * g[j, i] * self.fA * A[j, i] / resource_sum
+                    interaction_matrix[i, j] = -interaction_matrix[j, i] / g[j, i]
+        print(interaction_matrix)
                 # Define higher interaction probability/strength for core species
                 # Select interaction type based on proportions
                 # elif interaction_type_ij == 'M':  # Mutualism (e.g., plant-pollinator)
@@ -91,50 +108,7 @@ class GLVmodel(object):
                 #     interaction_matrix[i, j] = -self.fC * factor
                 #     interaction_matrix[j, i] = -self.fC * factor
 
-
-        # Fill in mutualisms
-        for i, j in interactions['m']:
-            # (strength of interaction i>j) = (efficiency [random]) * (mutualism strength [random but
-            # the same for all mutualistic interactions]) * (proportion of i's mutualistic interactions
-            # which are with j)
-            factor = nested_factor if is_core(i, j) else 1
-            a[i, j] = factor * e[i, j] * self.fM * A[i, j] / np.sum(A[i, r_m[i]])
-            a[j, i] = e[j, i] * self.fM * A[j, i] / np.sum(A[j, r_m[j]])
-
-        # Fill in facilitations
-        for i, j in interactions['f']:
-            # (strength of interaction i>j) = (efficiency [random]) * (facilitation strength [random but
-            # the same for all facilitation interactions]) * (proportion of i's facilitation interactions
-            # which are with j)interactions
-
-            # Multiply the strength by 2 so that it's equivalent to other interactions where the two directional edges are filled
-            # Only j facilitates i. The order of i and j was randomized before
-            # the normalization is motivated by a fixed budget of facilitation that the facilitator j can perform
-            factor = nested_factor if is_core(i, j) else 1
-            a[i, j] = factor * 2 * f[i, j] * self.fF * A[i, j] / np.sum(A[r_f[j], j])
-            # only one-directional
-            a[j, i] = 0
-
-        # Fill in competitions
-        for i, j in interactions['c']:
-            # (strength of interaction i>j) = (efficiency [random]) * (competition strength [random but
-            # the same for all competition interactions]) * (proportion of i's competition interactions
-            # which are with j)
-            factor = nested_factor if is_core(i, j) else 1
-            a[i, j] = -factor * c[i, j] * self.fC * A[i, j] / np.sum(A[i, r_c[i]])
-            a[j, i] = -factor * c[j, i] * self.fC * A[j, i] / np.sum(A[j, r_c[j]])
-
-        # Fill in antagonisms
-        for i, j in interactions['a']:
-            factor = nested_factor if is_core(i, j) else 1
-            a[j, i] = factor * g[j, i] * self.fA * A[j, i] / np.sum(A[j, r_a[j]])  # j (higher index) preys on i --> ensures directionality
-            a[i, j] = - a[j, i] / g[j, i]
-
-        # Set diagonal terms to ensure negative intraspecific interactions
-        for i in range(self.N):
-            a[i, i] = -np.random.uniform()  # Ensuring stability by negative self-regulation
-
-        return a
+        return interaction_matrix
     
     def generate_lv_params(self, pA=0.2, pM=0, pF=0, pC=0, nestedness_level=0.7, nested_factor=1.5):
         """ Generate equilibrium point and solve for r """

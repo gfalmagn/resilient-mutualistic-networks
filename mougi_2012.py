@@ -58,7 +58,7 @@ def generate_glv_matrix_cascade(N, fA, fM, fF, fC, pA=0.1, pM=0, pF=0, pC=0):
     # Pick out interactions for each type
     interactions = {}
     for label, p in zip('afcm', [pA, pF, pC, pM]):
-        size = int(p * n_a)
+        size = int(p * len(pairs))
         interactions[label] = np.random.choice(sel, size=size, replace=False)
         # get pairs that are in sel but not in interactions
         remaining_pairs = np.logical_not(np.isin(sel, interactions[label]))
