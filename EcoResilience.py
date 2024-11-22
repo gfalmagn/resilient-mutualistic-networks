@@ -77,24 +77,27 @@ class GLVmodel(object):
         core_species = int(self.N * nestedness_level)
         for label in "amfc":
             print(f"{label}:", interactions[label])
-            for edge in interactions[label]:
-                i, j = edge
-                # if (i < core_species or j < core_species):
-                #     factor = nested_factor  # Increase factor for core interactions
-                # else:
-                factor = 1.0
-                if label == "a":
-                    # j (higher index) preys on i --> ensures directionality
-                    resource_sum = 0
-                    for pair in interactions[label]:
-                        print(pair)
-                        if pair[0] == i:
-                            resource_sum += A[j, pair[0]]
-                        # elif pair[1] == j:
-                        #     resource_sum += A[pair[0], j]
-                    print(resource_sum)
+            # if (i < core_species or j < core_species):
+            #     factor = nested_factor  # Increase factor for core interactions
+            # else:
+            factor = 1.0
+            if label == "a":
+                # j (higher index) preys on i --> ensures directionality
+                resource_sum = 0
+                for i, j in interactions[label]:
+                    resource_sum += A[j, i]
+                for i, j in interactions[label]:
                     interaction_matrix[j, i] = factor * g[j, i] * self.fA * A[j, i] / resource_sum
                     interaction_matrix[i, j] = -interaction_matrix[j, i] / g[j, i]
+            elif label == "m":
+                resource_sum_i = 0
+                resource_sum_j = 0
+                for i, j in interactions[label]:
+                    resource_sum_i += A[i, j]
+                    resource_sum_j += A[j, i]
+                for i, j in interactions[label]:
+                    interaction_matrix[i, j] = factor * e[i, j] * self.fA * A[i, j] / resource_sum_i
+                    interaction_matrix[j, i] = factor * e[j, i] * self.fA * A[j, i] / resource_sum_j
         print(interaction_matrix)
                 # Define higher interaction probability/strength for core species
                 # Select interaction type based on proportions
