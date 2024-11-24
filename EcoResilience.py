@@ -15,7 +15,7 @@ class GLVmodel(object):
         self.fF = fF  # relative strength of facilitative interactions
         self.fC = fC  # relative strength of competitive interactions
 
-    def generate_nested_glv_matrix(self, pA=0.2, pM=0, pF=0, pC=0, nestedness_level=0.7, nested_factor=1.5):
+    def generate_nested_glv_matrix(self, p_a=0.2, p_m=0, p_f=0, p_c=0, nestedness_level=0.7, nested_factor=1.5):
         """
         Generate a GLV interaction matrix with nestedness.
 
@@ -25,7 +25,7 @@ class GLVmodel(object):
             fM: strength of mutualistic interactions
             fF: strength of facilitation
             fC: strength of competition
-            pA, pM, pF, pC: density of each interaction type
+            p_a, p_m, p_f, p_c: density of each interaction type
             nestedness_level: proportion of core species
             nested_factor: scaling factor for core interactions
 
@@ -35,18 +35,18 @@ class GLVmodel(object):
         # Conversion efficiency when i utilizes j in the corresponding interaction:
         # "g": antagonism; "e": mutualism; "f": facilitation; "c": competition
         const_efficiency = 0.5  # to make all efficiencies random as in the paper, use -1 here
-        g = np.full((self.N, self.N), const_efficiency) if const_efficiency >= 0 else np.random.uniform(0, 1, (self.N, self.N))
-        e = np.full((self.N, self.N), const_efficiency) if const_efficiency >= 0 else np.random.uniform(0, 1, (self.N, self.N))
-        f = np.full((self.N, self.N), const_efficiency) if const_efficiency >= 0 else np.random.uniform(0, 1, (self.N, self.N))
-        c = np.full((self.N, self.N), const_efficiency) if const_efficiency >= 0 else np.random.uniform(0, 1, (self.N, self.N))
+        G = np.full((self.N, self.N), const_efficiency) if const_efficiency >= 0 else np.random.uniform(0, 1, (self.N, self.N))
+        E = np.full((self.N, self.N), const_efficiency) if const_efficiency >= 0 else np.random.uniform(0, 1, (self.N, self.N))
+        F = np.full((self.N, self.N), const_efficiency) if const_efficiency >= 0 else np.random.uniform(0, 1, (self.N, self.N))
+        C = np.full((self.N, self.N), const_efficiency) if const_efficiency >= 0 else np.random.uniform(0, 1, (self.N, self.N))
         A = np.random.uniform(0, 1, (self.N, self.N))  # Potential interaction preferences
         np.fill_diagonal(A, 0)
 
-        P = pA + pM + pF + pC
+        P = p_a + p_m + p_f + p_c
         assert P <= 1 + 1e-5, "Total interaction density must be less than 1, but you entered {} + {} + {} + {} = {}".format(
-            pA, pM, pF, pC, P)
+            p_a, p_m, p_f, p_c, P)
         if P > 1:
-            pA -= 1e-5
+            p_a -= 1e-5
         N_pairs = int(P * self.N * (self.N - 1) / 2)  # number of connected pairs (edges) [SH]
 
         # Construct list of all pairs of species (`L_max` in Mougi & Kondo, Science 2012)
@@ -57,38 +57,39 @@ class GLVmodel(object):
 
         # Pick out interactions for each type
         interactions = {}
-        for label, p in zip('amfc', [pA, pM, pF, pC]):
+        for label, p in zip('amfc', [p_a, p_m, p_f, p_c]):
             size = int(p * len(max_pairs))
             interactions[label] = sorted(np.random.choice(selected_pairs, size=size, replace=False), key=lambda x: x[0])
-            # get pairs that are in sel but not in interactions
-            pairs_not_assigned = np.logical_not(np.isin(selected_pairs, interactions[label]))
-            remaining_pairs = selected_pairs[pairs_not_assigned]
+            # get pairs that are in selected_pairs but not in interactions
+            if interactions[label]:
+                pairs_not_assigned = np.logical_not(np.isin(selected_pairs, interactions[label]))
+                selected_pairs = selected_pairs[pairs_not_assigned]
 
         interaction_matrix = np.zeros((self.N, self.N))
         # Set diagonal terms to ensure negative intraspecific interactions
         for i in range(self.N):
             interaction_matrix[i, i] = -np.random.uniform()  # Ensuring stability by negative self-regulation
 
-        print(A)
-        selected_pairs = [(1, 3), (0, 1), (1, 2), (2, 3)]
-        interactions = {"a": [(2, 3), (0, 1)], "m": [(1, 3), (1, 2)], "f": [], "c": []}
-        print(interactions)
+        # print(A)
+        # selected_pairs = [(1, 3), (0, 1), (1, 2), (2, 3)]
+        # interactions = {"a": [(2, 3), (0, 1)], "m": [(1, 3), (1, 2)], "f": [], "c": []}
+        # print(interactions)
 
         core_species = int(self.N * nestedness_level)
         for label in "amfc":
             print(f"{label}:", interactions[label])
-            # if (i < core_species or j < core_species):
-            #     factor = nested_factor  # Increase factor for core interactions
-            # else:
-            factor = 1.0
             if label == "a":
                 # j (higher index) preys on i --> ensures directionality
                 resource_sum = 0
                 for i, j in interactions[label]:
                     resource_sum += A[j, i]
                 for i, j in interactions[label]:
-                    interaction_matrix[j, i] = factor * g[j, i] * self.fA * A[j, i] / resource_sum
-                    interaction_matrix[i, j] = -interaction_matrix[j, i] / g[j, i]
+                    if (i < core_species or j < core_species):
+                        factor = nested_factor  # Increase factor for core interactions
+                    else:
+                        factor = 1.0
+                    interaction_matrix[j, i] = factor * G[j, i] * self.fA * A[j, i] / resource_sum
+                    interaction_matrix[i, j] = -interaction_matrix[j, i] / G[j, i]
             elif label == "m":
                 resource_sum_i = 0
                 resource_sum_j = 0
@@ -96,27 +97,45 @@ class GLVmodel(object):
                     resource_sum_i += A[i, j]
                     resource_sum_j += A[j, i]
                 for i, j in interactions[label]:
-                    interaction_matrix[i, j] = factor * e[i, j] * self.fA * A[i, j] / resource_sum_i
-                    interaction_matrix[j, i] = factor * e[j, i] * self.fA * A[j, i] / resource_sum_j
+                    if (i < core_species or j < core_species):
+                        factor = nested_factor  # Increase factor for core interactions
+                    else:
+                        factor = 1.0
+                    interaction_matrix[i, j] = factor * E[i, j] * self.fM * A[i, j] / resource_sum_i
+                    interaction_matrix[j, i] = factor * E[j, i] * self.fM * A[j, i] / resource_sum_j
+            elif label == "f":
+                resource_sum_i = 0
+                resource_sum_j = 0
+                for i, j in interactions[label]:
+                    resource_sum_i += A[i, j]
+                    resource_sum_j += A[j, i]
+                for i, j in interactions[label]:
+                    if (i < core_species or j < core_species):
+                        factor = nested_factor  # Increase factor for core interactions
+                    else:
+                        factor = 1.0
+                    interaction_matrix[i, j] = factor * F[i, j] * self.fF * A[i, j] / resource_sum_i
+                    interaction_matrix[j, i] = 0
+            elif label == "c":
+                resource_sum_i = 0
+                resource_sum_j = 0
+                for i, j in interactions[label]:
+                    resource_sum_i += A[i, j]
+                    resource_sum_j += A[j, i]
+                for i, j in interactions[label]:
+                    if (i < core_species or j < core_species):
+                        factor = nested_factor  # Increase factor for core interactions
+                    else:
+                        factor = 1.0
+                    interaction_matrix[i, j] = -factor * C[i, j] * self.fC * A[i, j] / resource_sum_i
+                    interaction_matrix[j, i] = -factor * C[j, i] * self.fC * A[j, i] / resource_sum_j
         print(interaction_matrix)
-                # Define higher interaction probability/strength for core species
-                # Select interaction type based on proportions
-                # elif interaction_type_ij == 'M':  # Mutualism (e.g., plant-pollinator)
-                #     interaction_matrix[i, j] = self.fM * factor
-                #     interaction_matrix[j, i] = self.fM * factor
-                # elif interaction_type_ij == 'F':  # Facilitation (one-sided benefit)
-                #     interaction_matrix[i, j] = self.fF * factor
-                #     interaction_matrix[j, i] = 0
-                # elif interaction_type_ij == 'C':  # Competition (both negative)
-                #     interaction_matrix[i, j] = -self.fC * factor
-                #     interaction_matrix[j, i] = -self.fC * factor
-
         return interaction_matrix
     
-    def generate_lv_params(self, pA=0.2, pM=0, pF=0, pC=0, nestedness_level=0.7, nested_factor=1.5):
+    def generate_lv_params(self, p_a=0.2, p_m=0, p_f=0, p_c=0, nestedness_level=0.7, nested_factor=1.5):
         """ Generate equilibrium point and solve for r """
     
-        interaction_matrix = self.generate_nested_glv_matrix(pA, pM, pF, pC, nestedness_level, nested_factor)
+        interaction_matrix = self.generate_nested_glv_matrix(p_a, p_m, p_f, p_c, nestedness_level, nested_factor)
         X_eq = np.random.uniform(0, 1, self.N)  # Random equilibrium abundances
     
         # Define function to find r that satisfies the equilibrium condition
@@ -206,7 +225,7 @@ class GLVmodel(object):
         # Heatmap of the interaction matrix
         plt.figure(figsize=(10, 8))
         sns.heatmap(sorted_matrix, cmap='coolwarm', linewidths=0.5, annot=False, square=True)
-        plt.title("Adjacency Matrix Heatmap (Sorted by Degree)")
+        plt.title("Adjacency Matrix Heatmap")# (Sorted by Degree)")
         plt.xlabel("Species")
         plt.ylabel("Species")
         plt.show()
