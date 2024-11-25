@@ -58,7 +58,7 @@ class GLVmodel(object):
         # Pick out interactions for each type
         interactions = {}
         for label, p in zip('amfc', [p_a, p_m, p_f, p_c]):
-            size = int(p * len(max_pairs))
+            size = int(p * len(selected_pairs))
             interactions[label] = sorted(np.random.choice(selected_pairs, size=size, replace=False), key=lambda x: x[0])
             # get pairs that are in selected_pairs but not in interactions
             if interactions[label]:
@@ -200,7 +200,16 @@ class GLVmodel(object):
             Sorted adjacency matrix and the order of nodes.
         """
         # Create a NetworkX graph from the adjacency matrix
-        G = nx.from_numpy_array(interaction_matrix)
+        adjacency_matrix = np.zeros((self.N, self.N))
+        for i in range(self.N):
+            for j in range(self.N):
+                if interaction_matrix[i, j] == 0:
+                    adjacency_matrix[i, j] = 0
+                else:
+                    adjacency_matrix[i, j] = 1
+                if i == j:
+                    adjacency_matrix[i, j] = 0
+        G = nx.from_numpy_array(adjacency_matrix)
 
         # Compute degrees for each node
         degrees = dict(G.degree())
@@ -209,7 +218,7 @@ class GLVmodel(object):
         sorted_nodes = sorted(degrees, key=degrees.get, reverse=True)
 
         # Reorder the adjacency matrix
-        sorted_matrix = interaction_matrix[np.ix_(sorted_nodes, sorted_nodes)]
+        sorted_matrix = adjacency_matrix[np.ix_(sorted_nodes, sorted_nodes)]
 
         return sorted_matrix, sorted_nodes
 
@@ -224,8 +233,9 @@ class GLVmodel(object):
 
         # Heatmap of the interaction matrix
         plt.figure(figsize=(10, 8))
-        sns.heatmap(sorted_matrix, cmap='coolwarm', linewidths=0.5, annot=False, square=True)
-        plt.title("Adjacency Matrix Heatmap")# (Sorted by Degree)")
+        sns.heatmap(sorted_matrix, cmap='gray_r', linewidths=0.5, annot=False, square=True)
+        # sns.heatmap(sorted_matrix, cmap='coolwarm', linewidths=0.5, annot=False, square=True)
+        plt.title("Adjacency Matrix")# Heatmap")# (Sorted by Degree)")
         plt.xlabel("Species")
         plt.ylabel("Species")
         plt.show()
