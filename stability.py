@@ -1,11 +1,11 @@
 from EcoResilience import GLVmodel
 
 # Parameters
-N = 30  # Number of species
+N = 50  # Number of species
 num_tests = 1
 p_a, p_m, p_f, p_c = 0.4, 0.4, 0., 0.  # Interaction type proportions
-nestedness_level = 0.7  # Proportion of core species
-nested_factor = 1.5
+nestedness_level = 0.8  # Proportion of core species
+nested_factor = 10
 model = GLVmodel(num_species=N)
 
 
