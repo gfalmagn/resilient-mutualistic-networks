@@ -77,7 +77,7 @@ class GLVmodel(object):
 
         core_species = int(self.N * nestedness_level)
         for label in "amfc":
-            print(f"{label}:", interactions[label])
+            # print(f"{label}:", interactions[label])
             if label == "a":
                 # j (higher index) preys on i --> ensures directionality
                 resource_sum = 0
@@ -129,7 +129,7 @@ class GLVmodel(object):
                         factor = 1.0
                     interaction_matrix[i, j] = -factor * C[i, j] * self.fC * A[i, j] / resource_sum_i
                     interaction_matrix[j, i] = -factor * C[j, i] * self.fC * A[j, i] / resource_sum_j
-        print(interaction_matrix)
+        # print(interaction_matrix)
         return interaction_matrix
     
     def generate_lv_params(self, p_a=0.2, p_m=0, p_f=0, p_c=0, nestedness_level=0.7, nested_factor=1.5):

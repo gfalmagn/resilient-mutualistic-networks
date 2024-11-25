@@ -2,7 +2,7 @@ from EcoResilience import GLVmodel
 
 # Parameters
 N = 30  # Number of species
-num_tests = 1
+num_tests = 100
 p_a, p_m, p_f, p_c = 0.4, 0.4, 0., 0.  # Interaction type proportions
 nestedness_level = 0.7  # Proportion of core species
 nested_factor = 1.5
@@ -17,7 +17,7 @@ for _ in range(num_tests):
     stable, eigenvalues = model.check_stability(jacobian_matrix)
     stability.append(stable)
 
-    model.visualize_adjacency_matrix(interaction_matrix)
+    # model.visualize_adjacency_matrix(interaction_matrix)
     # print("Equilibrium abundances:", X_eq)
     print("Is the network stable?", stable)
 print(sum(stability))
