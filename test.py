@@ -29,6 +29,7 @@ def initialize_adjacency_matrix(S, E, forbidden_links=None):
         i, j = random.randint(0, S - 1), random.randint(0, S - 1)
         if i != j and adjacency_matrix[i, j] == 0 and (forbidden_links is None or (i, j) not in forbidden_links):
             adjacency_matrix[i, j] = 1
+            # adjacency_matrix[j, i] = 1
             links_added += 1
 
     return adjacency_matrix
@@ -107,15 +108,17 @@ def self_organising_network(S, E, forbidden_links=None, iterations=1000):
 
     return adjacency_matrix
 
-def sort_nodes_by_degree(N, interaction_matrix):
+def sort_nodes_by_degree(interaction_matrix):
     """
-    Sort nodes by their degree (number of interactions) in descending order.
+    Sort the adjacency matrix A based on the degrees of the nodes.
+
     Parameters:
-        interaction_matrix: The interaction matrix (adjacency matrix) to analyze.
+        A (np.ndarray): Adjacency matrix (N x N).
+
     Returns:
-        Sorted adjacency matrix and the order of nodes.
+        np.ndarray: Sorted adjacency matrix.
     """
-    # Create a NetworkX graph from the adjacency matrix
+    N = len(interaction_matrix)
     adjacency_matrix = np.zeros((N, N))
     for i in range(N):
         for j in range(N):
@@ -125,28 +128,28 @@ def sort_nodes_by_degree(N, interaction_matrix):
                 adjacency_matrix[i, j] = 1
             if i == j:
                 adjacency_matrix[i, j] = 0
-    G = nx.from_numpy_array(adjacency_matrix)
+    # Compute degrees (sum of rows + columns for undirected graphs)
+    degrees = np.sum(adjacency_matrix, axis=0) + np.sum(adjacency_matrix, axis=1)
 
-    # Compute degrees for each node
-    degrees = dict(G.degree())
+    # Get the sorted indices in descending order
+    sorted_indices = np.argsort(degrees)[::-1]
 
-    # Sort nodes by degree (in descending order)
-    sorted_nodes = sorted(degrees, key=degrees.get, reverse=True)
+    # Rearrange rows and columns based on sorted indices
+    # sorted_adjacency = adjacency_matrix[np.ix_(sorted_indices, sorted_indices)]
+    sorted_interactions = interaction_matrix[np.ix_(sorted_indices, sorted_indices)]
 
-    # Reorder the adjacency matrix
-    sorted_matrix = adjacency_matrix[np.ix_(sorted_nodes, sorted_nodes)]
+    return sorted_interactions, sorted_indices
 
-    return sorted_matrix, sorted_nodes
-
-def visualize_adjacency_matrix(N, interaction_matrix):
+def visualize_adjacency_matrix(interaction_matrix):
     """
     Visualizes the adjacency (interaction) matrix as a heatmap and a network graph.
     Parameters:
         interaction_matrix: The interaction matrix (adjacency matrix) to visualize.
     """
+    N = len(interaction_matrix)
     # Sort nodes by degree
-    # sorted_matrix, sorted_nodes = sort_nodes_by_degree(N, interaction_matrix)
-    sorted_matrix = interaction_matrix
+    sorted_matrix, sorted_nodes = sort_nodes_by_degree(interaction_matrix)
+    # sorted_matrix = interaction_matrix
     sorted_nodes = list(range(N))
 
     # Heatmap of the interaction matrix
@@ -158,60 +161,41 @@ def visualize_adjacency_matrix(N, interaction_matrix):
     plt.ylabel("Species")
     plt.show()
 
-# S = 30  # Number of species
-# E = 200  # Number of links
-# forbidden_links = {(0, 1), (2, 3)}  # Example forbidden links
+S = 30  # Number of species
+E = 200  # Number of links
+forbidden_links = None  #{(0, 1), (2, 3)}  # Example forbidden links
+
+adjacency_matrix = self_organising_network(S, E, forbidden_links, iterations=2000)
+print(adjacency_matrix)
+visualize_adjacency_matrix(adjacency_matrix)
+
+# random_adjacency_matrix = initialize_adjacency_matrix(S, E)
+# sorted_adjacency, sorted_indices = sort_nodes_by_degree(random_adjacency_matrix)
+# visualize_adjacency_matrix(sorted_adjacency)
+
+
+# # Example adjacency matrix
+# A = np.array([
+#     [0., 0., 0., 1., 1.],
+#     [0., 0., 0., 1., 1.],
+#     [0., 0., 0., 1., 0.],
+#     [1., 1., 1., 0., 1.],
+#     [1., 1., 0., 1., 0.]
+# ])
 #
-# adjacency_matrix = self_organising_network(S, E, forbidden_links, iterations=2000)
-# print(adjacency_matrix)
+# # Sort the adjacency matrix
+# sorted_A, sorted_indices = sort_adjacency_by_degree(A)
 #
-# visualize_adjacency_matrix(S, adjacency_matrix)
-
-import numpy as np
-
-
-def sort_adjacency_by_degree(A):
-    """
-    Sort the adjacency matrix A based on the degrees of the nodes.
-
-    Parameters:
-        A (np.ndarray): Adjacency matrix (N x N).
-
-    Returns:
-        np.ndarray: Sorted adjacency matrix.
-    """
-    # Compute degrees (sum of rows + columns for undirected graphs)
-    degrees = np.sum(A, axis=0) + np.sum(A, axis=1)
-
-    # Get the sorted indices in descending order
-    sorted_indices = np.argsort(degrees)[::-1]
-
-    # Rearrange rows and columns based on sorted indices
-    sorted_A = A[np.ix_(sorted_indices, sorted_indices)]
-
-    return sorted_A, sorted_indices
+# print("Original Adjacency Matrix:")
+# print(A)
+#
+# print("\nSorted Adjacency Matrix:")
+# print(sorted_A)
+#
+# print("\nSorted Indices (Original to Sorted Order):")
+# print(sorted_indices)
 
 
-# Example adjacency matrix
-A = np.array([
-    [0., 0., 0., 1., 1.],
-    [0., 0., 0., 1., 1.],
-    [0., 0., 0., 1., 0.],
-    [1., 1., 1., 0., 1.],
-    [1., 1., 0., 1., 0.]
-])
-
-# Sort the adjacency matrix
-sorted_A, sorted_indices = sort_adjacency_by_degree(A)
-
-print("Original Adjacency Matrix:")
-print(A)
-
-print("\nSorted Adjacency Matrix:")
-print(sorted_A)
-
-print("\nSorted Indices (Original to Sorted Order):")
-print(sorted_indices)
 
 # import matplotlib.pyplot as plt
 # import networkx as nx
