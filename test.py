@@ -40,9 +40,9 @@ def swap_links(adjacency_matrix, i, j1, j2, forbidden_links=None):
 
     Parameters:
         adjacency_matrix (np.ndarray): Current adjacency matrix.
-        i (int): Selected row/column index.
-        j1 (int): Index of the current 1 in the row/column.
-        j2 (int): Index of the current 0 in the row/column.
+        i (int): Selected row index.
+        j1 (int): Index of the current 1 in the column, i.e., A[i, j1] = 1, where A is adjacency matrix.
+        j2 (int): Index of the current 0 in the column, i.e., A[i, j2] = 0, where A is adjacency matrix.
         forbidden_links (set): Set of forbidden links (tuples of node indices).
 
     Returns:
@@ -57,7 +57,7 @@ def swap_links(adjacency_matrix, i, j1, j2, forbidden_links=None):
         return False
 
     # Condition 2: The swap should not cause the current partner to become extinct
-    if np.sum(adjacency_matrix[j1, :]) == 1:  # j1 would have no links after swap
+    if np.sum(adjacency_matrix[j1, :]) < 1:  # j1 would have no links after swap
         return False
 
     # Condition 3: The new link should not be forbidden
@@ -158,15 +158,60 @@ def visualize_adjacency_matrix(N, interaction_matrix):
     plt.ylabel("Species")
     plt.show()
 
-S = 10  # Number of species
-E = 20  # Number of links
-forbidden_links = {(0, 1), (2, 3)}  # Example forbidden links
+# S = 30  # Number of species
+# E = 200  # Number of links
+# forbidden_links = {(0, 1), (2, 3)}  # Example forbidden links
+#
+# adjacency_matrix = self_organising_network(S, E, forbidden_links, iterations=2000)
+# print(adjacency_matrix)
+#
+# visualize_adjacency_matrix(S, adjacency_matrix)
 
-adjacency_matrix = self_organising_network(S, E, forbidden_links, iterations=1000)
-print(adjacency_matrix)
+import numpy as np
 
-visualize_adjacency_matrix(S, adjacency_matrix)
 
+def sort_adjacency_by_degree(A):
+    """
+    Sort the adjacency matrix A based on the degrees of the nodes.
+
+    Parameters:
+        A (np.ndarray): Adjacency matrix (N x N).
+
+    Returns:
+        np.ndarray: Sorted adjacency matrix.
+    """
+    # Compute degrees (sum of rows + columns for undirected graphs)
+    degrees = np.sum(A, axis=0) + np.sum(A, axis=1)
+
+    # Get the sorted indices in descending order
+    sorted_indices = np.argsort(degrees)[::-1]
+
+    # Rearrange rows and columns based on sorted indices
+    sorted_A = A[np.ix_(sorted_indices, sorted_indices)]
+
+    return sorted_A, sorted_indices
+
+
+# Example adjacency matrix
+A = np.array([
+    [0., 0., 0., 1., 1.],
+    [0., 0., 0., 1., 1.],
+    [0., 0., 0., 1., 0.],
+    [1., 1., 1., 0., 1.],
+    [1., 1., 0., 1., 0.]
+])
+
+# Sort the adjacency matrix
+sorted_A, sorted_indices = sort_adjacency_by_degree(A)
+
+print("Original Adjacency Matrix:")
+print(A)
+
+print("\nSorted Adjacency Matrix:")
+print(sorted_A)
+
+print("\nSorted Indices (Original to Sorted Order):")
+print(sorted_indices)
 
 # import matplotlib.pyplot as plt
 # import networkx as nx

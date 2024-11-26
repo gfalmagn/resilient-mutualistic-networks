@@ -5,6 +5,7 @@ from scipy.linalg import eigvals
 from scipy.optimize import fsolve
 import seaborn as sns
 import networkx as nx
+import random
 
 class GLVmodel(object):
 
@@ -14,6 +15,17 @@ class GLVmodel(object):
         self.fM = fM  # relative strength of mutualistic interactions
         self.fF = fF  # relative strength of facilitative interactions
         self.fC = fC  # relative strength of competitive interactions
+
+    def generate_random_adjacency_matrix(self, num_ones):
+        adjacency_matrix = np.zeros((self.N, self.N), dtype=int)
+        links_added = 0
+        while links_added < num_ones:
+            i, j = random.randint(0, self.N - 1), random.randint(0, self.N - 1)
+            if i != j and adjacency_matrix[i, j] == 0:
+                adjacency_matrix[i, j] = 1
+                adjacency_matrix[j, i] = 1
+                links_added += 1
+        return adjacency_matrix
 
     def generate_nested_glv_matrix(self, p_a=0.2, p_m=0, p_f=0, p_c=0, nestedness_level=0.7, nested_factor=1.5):
         """
@@ -58,7 +70,7 @@ class GLVmodel(object):
         # Pick out interactions for each type
         interactions = {}
         for label, p in zip('amfc', [p_a, p_m, p_f, p_c]):
-            size = int(p * len(selected_pairs))
+            size = int(p * len(max_pairs))
             interactions[label] = sorted(np.random.choice(selected_pairs, size=size, replace=False), key=lambda x: x[0])
             # get pairs that are in selected_pairs but not in interactions
             if interactions[label]:
@@ -84,10 +96,13 @@ class GLVmodel(object):
                 for i, j in interactions[label]:
                     resource_sum += A[j, i]
                 for i, j in interactions[label]:
-                    if (i < core_species or j < core_species):
+                    if i < core_species or j < core_species:
                         factor = nested_factor  # Increase factor for core interactions
                     else:
-                        factor = 1.0
+                        if np.random.rand() > 0.5:
+                            factor = 1.0
+                        else:
+                            factor = 0
                     interaction_matrix[j, i] = factor * G[j, i] * self.fA * A[j, i] / resource_sum
                     interaction_matrix[i, j] = -interaction_matrix[j, i] / G[j, i]
             elif label == "m":
@@ -97,10 +112,13 @@ class GLVmodel(object):
                     resource_sum_i += A[i, j]
                     resource_sum_j += A[j, i]
                 for i, j in interactions[label]:
-                    if (i < core_species or j < core_species):
+                    if i < core_species or j < core_species:
                         factor = nested_factor  # Increase factor for core interactions
                     else:
-                        factor = 1.0
+                        if np.random.rand() > 0.5:
+                            factor = 1.0
+                        else:
+                            factor = 0
                     interaction_matrix[i, j] = factor * E[i, j] * self.fM * A[i, j] / resource_sum_i
                     interaction_matrix[j, i] = factor * E[j, i] * self.fM * A[j, i] / resource_sum_j
             elif label == "f":
@@ -110,10 +128,13 @@ class GLVmodel(object):
                     resource_sum_i += A[i, j]
                     resource_sum_j += A[j, i]
                 for i, j in interactions[label]:
-                    if (i < core_species or j < core_species):
+                    if i < core_species or j < core_species:
                         factor = nested_factor  # Increase factor for core interactions
                     else:
-                        factor = 1.0
+                        if np.random.rand() > 0.5:
+                            factor = 1.0
+                        else:
+                            factor = 0
                     interaction_matrix[i, j] = factor * F[i, j] * self.fF * A[i, j] / resource_sum_i
                     interaction_matrix[j, i] = 0
             elif label == "c":
@@ -123,14 +144,18 @@ class GLVmodel(object):
                     resource_sum_i += A[i, j]
                     resource_sum_j += A[j, i]
                 for i, j in interactions[label]:
-                    if (i < core_species or j < core_species):
+                    if i < core_species or j < core_species:
                         factor = nested_factor  # Increase factor for core interactions
                     else:
-                        factor = 1.0
+                        if np.random.rand() > 0.5:
+                            factor = 1.0
+                        else:
+                            factor = 0
                     interaction_matrix[i, j] = -factor * C[i, j] * self.fC * A[i, j] / resource_sum_i
                     interaction_matrix[j, i] = -factor * C[j, i] * self.fC * A[j, i] / resource_sum_j
         # print(interaction_matrix)
         return interaction_matrix
+
     
     def generate_lv_params(self, p_a=0.2, p_m=0, p_f=0, p_c=0, nestedness_level=0.7, nested_factor=1.5):
         """ Generate equilibrium point and solve for r """
@@ -193,13 +218,14 @@ class GLVmodel(object):
 
     def sort_nodes_by_degree(self, interaction_matrix):
         """
-        Sort nodes by their degree (number of interactions) in descending order.
+        Sort the adjacency matrix A from interaction_matrix based on the degrees of the nodes.
+
         Parameters:
-            interaction_matrix: The interaction matrix (adjacency matrix) to analyze.
+            interaction_matrix (np.ndarray): Interaction matrix (N x N).
+
         Returns:
-            Sorted adjacency matrix and the order of nodes.
+            np.ndarray: Sorted adjacency matrix.
         """
-        # Create a NetworkX graph from the adjacency matrix
         adjacency_matrix = np.zeros((self.N, self.N))
         for i in range(self.N):
             for j in range(self.N):
@@ -209,18 +235,22 @@ class GLVmodel(object):
                     adjacency_matrix[i, j] = 1
                 if i == j:
                     adjacency_matrix[i, j] = 0
-        G = nx.from_numpy_array(adjacency_matrix)
+        # # Compute degrees for each node
+        # G = nx.from_numpy_array(adjacency_matrix)
+        # node_degree = dict(G.degree())
+        # print(node_degree)
 
-        # Compute degrees for each node
-        degrees = dict(G.degree())
+        # Compute degrees (sum of rows + columns for undirected graphs)
+        degrees = np.sum(adjacency_matrix, axis=0) + np.sum(adjacency_matrix, axis=1)
 
-        # Sort nodes by degree (in descending order)
-        sorted_nodes = sorted(degrees, key=degrees.get, reverse=True)
+        # Get the sorted indices in descending order
+        sorted_indices = np.argsort(degrees)[::-1]
 
-        # Reorder the adjacency matrix
-        sorted_matrix = adjacency_matrix[np.ix_(sorted_nodes, sorted_nodes)]
+        # Rearrange rows and columns based on sorted indices
+        # sorted_adjacency = adjacency_matrix[np.ix_(sorted_indices, sorted_indices)]
+        sorted_matrix = interaction_matrix[np.ix_(sorted_indices, sorted_indices)]
 
-        return sorted_matrix, sorted_nodes
+        return sorted_matrix, sorted_indices
 
     def visualize_adjacency_matrix(self, interaction_matrix):
         """
@@ -230,11 +260,12 @@ class GLVmodel(object):
         """
         # Sort nodes by degree
         sorted_matrix, sorted_nodes = self.sort_nodes_by_degree(interaction_matrix)
+        # print(sorted_matrix)
 
         # Heatmap of the interaction matrix
         plt.figure(figsize=(10, 8))
-        sns.heatmap(sorted_matrix, cmap='gray_r', linewidths=0.5, annot=False, square=True)
-        # sns.heatmap(sorted_matrix, cmap='coolwarm', linewidths=0.5, annot=False, square=True)
+        # sns.heatmap(np.abs(sorted_matrix), cmap='gray_r', linewidths=0.5, annot=False, square=True)
+        sns.heatmap(sorted_matrix, cmap='coolwarm', linewidths=0.5, annot=False, square=True)
         plt.title("Adjacency Matrix")# Heatmap")# (Sorted by Degree)")
         plt.xlabel("Species")
         plt.ylabel("Species")
