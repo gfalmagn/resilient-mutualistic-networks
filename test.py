@@ -150,7 +150,7 @@ def visualize_adjacency_matrix(interaction_matrix):
     # Sort nodes by degree
     sorted_matrix, sorted_nodes = sort_nodes_by_degree(interaction_matrix)
     # sorted_matrix = interaction_matrix
-    sorted_nodes = list(range(N))
+    # sorted_nodes = list(range(N))
 
     # Heatmap of the interaction matrix
     plt.figure(figsize=(10, 8))
