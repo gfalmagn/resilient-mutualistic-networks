@@ -1,0 +1,4 @@
+# python generated files
+__pycache__/
+
+nested/

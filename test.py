@@ -166,7 +166,7 @@ E = 200  # Number of links
 forbidden_links = None  #{(0, 1), (2, 3)}  # Example forbidden links
 
 adjacency_matrix = self_organising_network(S, E, forbidden_links, iterations=2000)
-print(adjacency_matrix)
+# print(adjacency_matrix)
 visualize_adjacency_matrix(adjacency_matrix)
 
 # random_adjacency_matrix = initialize_adjacency_matrix(S, E)
