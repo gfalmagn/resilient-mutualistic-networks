@@ -48,15 +48,15 @@ class GLVmodel(object):
         """
         # Conversion efficiency when i utilizes j in the corresponding interaction:
         # "g": antagonism; "e": mutualism; "f": facilitation; "c": competition
-        const_efficiency = 0.5  # to make all efficiencies random as in the paper, use -1 here
-        G = np.full((self.N, self.N), const_efficiency) if const_efficiency > 0 else np.random.uniform(0, 1, (self.N, self.N))
-        E = np.full((self.N, self.N), const_efficiency) if const_efficiency > 0 else np.random.uniform(0, 1, (self.N, self.N))
-        F = np.full((self.N, self.N), const_efficiency) if const_efficiency > 0 else np.random.uniform(0, 1, (self.N, self.N))
-        C = np.full((self.N, self.N), const_efficiency) if const_efficiency > 0 else np.random.uniform(0, 1, (self.N, self.N))
-        # G = np.random.uniform(0, 1, (self.N, self.N))
-        # E = np.random.uniform(0, 1, (self.N, self.N))
-        # F = np.random.uniform(0, 1, (self.N, self.N))
-        # C = np.random.uniform(0, 1, (self.N, self.N))
+        # const_efficiency = -1  # to make all efficiencies random as in the paper, use -1 here
+        # G = np.full((self.N, self.N), const_efficiency) if const_efficiency > 0 else np.random.uniform(0, 1, (self.N, self.N))
+        # E = np.full((self.N, self.N), const_efficiency) if const_efficiency > 0 else np.random.uniform(0, 1, (self.N, self.N))
+        # F = np.full((self.N, self.N), const_efficiency) if const_efficiency > 0 else np.random.uniform(0, 1, (self.N, self.N))
+        # C = np.full((self.N, self.N), const_efficiency) if const_efficiency > 0 else np.random.uniform(0, 1, (self.N, self.N))
+        G = np.random.uniform(0, 1, (self.N, self.N))
+        E = np.random.uniform(0, 1, (self.N, self.N))
+        F = np.random.uniform(0, 1, (self.N, self.N))
+        C = np.random.uniform(0, 1, (self.N, self.N))
 
         # Potential interaction preferences
         A = np.random.uniform(0, 1, (self.N, self.N))
