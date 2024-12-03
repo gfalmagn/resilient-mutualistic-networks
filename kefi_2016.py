@@ -27,13 +27,11 @@ def randomize_interaction_matrix(adj, type, strength=1.0):
     A = np.random.uniform(0, 1, (N, N))  # potential preference for the interaction partners
     np.fill_diagonal(A, 0)
 
-    count_links = 0
     interactions = []
     for i in range(adj.shape[0]):
         for j in range(adj.shape[1]):
             if adj[i, j] == 1:
                 interactions.append([i, j])
-                count_links += 1
 
     monodirectional = []
     bidirectional = []
@@ -141,7 +139,7 @@ def randomize_interaction_matrix(adj, type, strength=1.0):
             a_rand[j, i] = - e[j, i] * fC * A[j, i] / np.sum(A[j, r_c[j]])
         num_interactions = len(interactions)
         proportion = num_interactions / n
-    print(num_interactions, f"links lead to p = {proportion:.4f}")
+    print(num_interactions, f"{type} links lead to p = {proportion:.4f}")
 
     # Fill in s_i values (i.e. a_ii), which must be negative
     for i in range(N):
@@ -180,7 +178,7 @@ interaction_type = {"a": "TI", "f": "NTIpos", "m": "NTIpos", "c": "NTIneg"}
 
 system(f"mkdir {data_path}/output/stable {data_path}/output/unstable")
 num_species = 106
-num_trials = 300
+num_trials = 1#300
 count = 0
 for run in range(num_trials):
     multi_interaction = np.zeros((num_species, num_species))

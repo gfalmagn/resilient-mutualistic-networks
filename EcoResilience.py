@@ -49,14 +49,15 @@ class GLVmodel(object):
         # Conversion efficiency when i utilizes j in the corresponding interaction:
         # "g": antagonism; "e": mutualism; "f": facilitation; "c": competition
         # const_efficiency = -1  # to make all efficiencies random as in the paper, use -1 here
-        # G = np.full((self.N, self.N), const_efficiency) if const_efficiency > 0 else np.random.uniform(0, 1, (self.N, self.N))
-        # E = np.full((self.N, self.N), const_efficiency) if const_efficiency > 0 else np.random.uniform(0, 1, (self.N, self.N))
-        # F = np.full((self.N, self.N), const_efficiency) if const_efficiency > 0 else np.random.uniform(0, 1, (self.N, self.N))
-        # C = np.full((self.N, self.N), const_efficiency) if const_efficiency > 0 else np.random.uniform(0, 1, (self.N, self.N))
-        G = np.random.uniform(0, 1, (self.N, self.N))
-        E = np.random.uniform(0, 1, (self.N, self.N))
-        F = np.random.uniform(0, 1, (self.N, self.N))
-        C = np.random.uniform(0, 1, (self.N, self.N))
+        const_efficiency = 0.85  # Fix all efficiencies as in S2Table.DOCX
+        G = np.full((self.N, self.N), const_efficiency) if const_efficiency > 0 else np.random.uniform(0, 1, (self.N, self.N))
+        E = np.full((self.N, self.N), const_efficiency) if const_efficiency > 0 else np.random.uniform(0, 1, (self.N, self.N))
+        F = np.full((self.N, self.N), const_efficiency) if const_efficiency > 0 else np.random.uniform(0, 1, (self.N, self.N))
+        C = np.full((self.N, self.N), const_efficiency) if const_efficiency > 0 else np.random.uniform(0, 1, (self.N, self.N))
+        # G = np.random.uniform(0, 1, (self.N, self.N))
+        # E = np.random.uniform(0, 1, (self.N, self.N))
+        # F = np.random.uniform(0, 1, (self.N, self.N))
+        # C = np.random.uniform(0, 1, (self.N, self.N))
 
         # Potential interaction preferences
         A = np.random.uniform(0, 1, (self.N, self.N))
@@ -281,3 +282,61 @@ class GLVmodel(object):
         plt.xlabel("Species")
         plt.ylabel("Species")
         plt.show()
+
+    def extract_proportion_of_interactions(self, adj, num_total_links, interaction_type):
+        """
+        This function takes an adjacency matrix (from Kefi et al. PLOS Biology, 2016) to
+        randomize the entries a_ij, which represent interaction strengths between species i and j.
+
+        :param
+            adj (array): adjacency matrix with entries 0 and 1 only
+            type (str): Interaction types ('a': antagonism = trophic interaction;
+                        'f': facilitation = non-trophic positive interaction;
+                        'c': competition = non-trophic negative interaction)
+            strength (float): interaction strength
+        :return:
+            a_rand: randomized interaction matrix
+        """
+        interactions = []
+        for i in range(adj.shape[0]):
+            for j in range(adj.shape[1]):
+                if adj[i, j] == 1:
+                    interactions.append([i, j])
+
+        monodirectional = []
+        bidirectional = []
+        bidirectional_twin = []
+        canibalism = []
+        for i, j in interactions:
+            if i == j:
+                canibalism.append([i, j])
+            else:
+                if [j, i] in interactions and j > i:
+                    bidirectional.append([i, j])
+                    bidirectional_twin.append([j, i])
+            if [i, j] not in canibalism and [i, j] not in bidirectional and [j, i] not in bidirectional_twin:
+                if j > i:
+                    monodirectional.append([i, j])
+
+        num_interactions = 0
+
+        if interaction_type == 'a':  # Tropic interactions
+            interactions = monodirectional
+            num_interactions = len(interactions)
+
+        elif interaction_type == 'f':  # Facilitating interactions
+            interactions = monodirectional
+            num_interactions = len(interactions)
+
+        elif interaction_type == "m":
+            interactions = bidirectional
+            num_interactions = len(interactions)
+
+        elif interaction_type == 'c':  # Competitive interactions
+            interactions = bidirectional + monodirectional
+            num_interactions = len(interactions)
+
+        proportion = num_interactions / num_total_links
+        # print(num_interactions, f"{interaction_type} links lead to p = {proportion:.4f}")
+
+        return proportion
