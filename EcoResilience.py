@@ -297,46 +297,52 @@ class GLVmodel(object):
         :return:
             a_rand: randomized interaction matrix
         """
-        interactions = []
+        links = []
+        num_links = 0
+        num_intraspecific = 0
+        num_monodirectional = 0
+        num_bidirectional = 0
         for i in range(adj.shape[0]):
-            for j in range(adj.shape[1]):
-                if adj[i, j] == 1:
-                    interactions.append([i, j])
-
-        monodirectional = []
-        bidirectional = []
-        bidirectional_twin = []
-        canibalism = []
-        for i, j in interactions:
-            if i == j:
-                canibalism.append([i, j])
-            else:
-                if [j, i] in interactions and j > i:
-                    bidirectional.append([i, j])
-                    bidirectional_twin.append([j, i])
-            if [i, j] not in canibalism and [i, j] not in bidirectional and [j, i] not in bidirectional_twin:
-                if j > i:
-                    monodirectional.append([i, j])
+            for j in range(i, adj.shape[1]):
+                if i == j:
+                    num_intraspecific += 1
+                    links.append([i, j])
+                    # num_links += 1
+                else:
+                    if adj[i, j] == 1 and adj[j, i] == 0:
+                        num_monodirectional += 1
+                        links.append([i, j])
+                        num_links += 1
+                    elif adj[i, j] == 1 and adj[j, i] == 1:
+                        num_bidirectional += 1
+                        links.append([i, j])
+                        links.append([j, i])
+                        num_links += 2
+                    elif adj[i, j] == 0 and adj[j, i] == 1:
+                        num_monodirectional += 1
+                        links.append([j, i])
+                        num_links += 1
+        # print(f"{interaction_type}: {num_links}")
+        # print(f"intraspecific: {num_intraspecific}, mono-dir: {num_monodirectional}, bi-dir: {num_bidirectional}")
 
         num_interactions = 0
-
         if interaction_type == 'a':  # Tropic interactions
-            interactions = monodirectional
-            num_interactions = len(interactions)
+            num_interactions = num_monodirectional
+            # print(f"{interaction_type}: {num_interactions}")
 
         elif interaction_type == 'f':  # Facilitating interactions
-            interactions = monodirectional
-            num_interactions = len(interactions)
+            num_interactions = num_monodirectional
+            # print(f"{interaction_type}: {num_interactions}")
 
         elif interaction_type == "m":
-            interactions = bidirectional
-            num_interactions = len(interactions)
+            num_interactions = num_bidirectional
+            # print(f"{interaction_type}: {num_interactions}")
 
         elif interaction_type == 'c':  # Competitive interactions
-            interactions = bidirectional + monodirectional
-            num_interactions = len(interactions)
+            num_interactions = num_bidirectional
+            # print(f"{interaction_type}: {num_interactions}")
 
         proportion = num_interactions / num_total_links
-        # print(num_interactions, f"{interaction_type} links lead to p = {proportion:.4f}")
+        # print(f"{num_interactions} links lead to p_{interaction_type} = {proportion:.4f}")
 
         return proportion

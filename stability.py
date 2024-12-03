@@ -38,7 +38,7 @@ interaction_type = {"a": "TI", "f": "NTIpos", "m": "NTIpos", "c": "NTIneg"}
 # 'f': facilitation = non-trophic positive interaction;
 # 'c': competition = non-trophic negative interaction
 num_species = 106
-num_links = 4623  # num of links of every interaction type in the Chilean data
+num_links = 4303  # num of links of every interaction type in the Chilean data
 model = GLVmodel(num_species)
 
 # Extract the proportion of each interaction type
@@ -50,37 +50,39 @@ for interaction_code in list(interaction_type.keys()):
     for line in f.readlines()[1:]:
         line = line.strip().split('\t')
         adj.append([int(elt) for elt in line[2:]])
+    adj = np.array(adj)
     adj = np.reshape(adj, (len(adj), len(adj)))
     proportion = model.extract_proportion_of_interactions(adj, num_total_links=num_links, interaction_type=interaction_code)
     # print(f"p_{interaction_code} = {proportion}")
     p[interaction_code] = proportion
 
     # OUTPUT
-    # 231 a links lead to p = 0.0500
-    # 110 f links lead to p = 0.0238
-    # 6 m links lead to p = 0.0013
-    # 1540 c links lead to p = 0.3331
+    # 231 links lead to p_a = 0.0500
+    # 110 links lead to p_f = 0.0238
+    # 6 links lead to p_m = 0.0013
+    # 1540 links lead to p_c = 0.3331
+
 
 num_tests = 10
-stability = []
+# level = 0.7
 for level in np.arange(0, 1, 0.1):
     print(f"Nestedness level = {level}")
+    stability = []
     count = 0
     for run in range(num_tests):
-        # Generate parameters and assess stability
+        # Generate a matrix with random interaction strengths
         r, interaction_matrix, X_eq = model.generate_glv_params(p["a"], p["m"], p["f"], p["c"], nestedness_level=level, nested_factor=1.0)
         stable = model.check_stability(interaction_matrix, X_eq)
         if stable:
             count += 1
             print(count, stable)
-            # np.savetxt(f"nested/pa{p_a}_pm{p_m}_pf{p_f}_pc{p_c}/N{N}_nl{nestedness_level}_nf{nested_factor:.1f}_Run{run}.txt",
-            #            interaction_matrix, fmt="%.8f")
+            np.savetxt(f"nested/chilean/nl{level:.1f}_Run{run}.txt", interaction_matrix, fmt="%.8f")
 
         stability.append(stable)
 
         # model.visualize_adjacency_matrix(interaction_matrix)
         # print("Equilibrium abundances:", X_eq)
-print(f"{sum(stability)}/{num_tests} networks (N={num_species}) are stable !")
+    print(f"{sum(stability)}/{num_tests} networks (N={num_species}) are stable !")
 
 
 
