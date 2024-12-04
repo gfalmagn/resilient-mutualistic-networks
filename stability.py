@@ -67,11 +67,13 @@ for interaction_code in list(interaction_type.keys()):
 print(fraction)
 system(f"mkdir nested/chilean")
 num_tests = 100
-nl_range = np.arange(0., 1., 0.1)
+bin = 0.02
+nl_range = np.arange(0., 1., bin)
 # level = 0.7
 p_stable = {}
+to_save = open(f"nested/chilean/randomised_nested_model_{num_tests}samples_bin{bin}.txt", "w")
 for level in nl_range:
-    system(f"mkdir nested/chilean/nl{level:.1f}")
+    # system(f"mkdir nested/chilean/nl{level:.2f}")
     stability = []
     count = 0
     for run in tqdm(range(num_tests)):
@@ -84,15 +86,17 @@ for level in nl_range:
         # if stable:
         #     count += 1
         #     print(count, stable)
-        #     np.savetxt(f"nested/chilean/nl{level:.1f}/Run{run}.txt", interaction_matrix, fmt="%.8f")
+        #     np.savetxt(f"nested/chilean/nl{level:.2f}/Run{run}.txt", interaction_matrix, fmt="%.8f")
         stability.append(stable)
-    print(f"Nestedness level = {level:.1f} : {sum(stability)}/{num_tests} networks are stable !")
+    print(f"Nestedness level = {level:.2f} : {sum(stability)}/{num_tests} networks are stable !")
     p_stable[level] = sum(stability)/num_tests * 100
-P_stable = np.c_[list(p_stable.keys()), list(p_stable.values())]
-np.savetxt(f"nested/chilean/randomised_nested_model_{num_tests}samples.txt", P_stable, fmt="%.1f %.4f")
+    to_save.write(f"{level:.2f} {sum(stability)/num_tests * 100:.4f}")
+# P_stable = np.c_[list(p_stable.keys()), list(p_stable.values())]
+# np.savetxt(f"nested/chilean/randomised_nested_model_{num_tests}samples_bin{bin}.txt", P_stable, fmt="%.2f %.4f")
+to_save.close()
 
-P_stable = np.loadtxt(f"nested/chilean/randomised_nested_model_{num_tests}samples.txt", dtype=float)
+P_stable = np.loadtxt(f"nested/chilean/randomised_nested_model_{num_tests}samples_bin{bin}.txt", dtype=float)
 fig, ax = plt.subplots()
 ax.tick_params(axis='both', labelsize=11)
-ax.scatter(P_stable, marker="o", color="k")
-plt.savefig(f"nested/chilean/randomised_nested_model_{num_tests}samples.svg", bbox_inches="tight")
+ax.scatter(P_stable.T[0], P_stable.T[1], marker="o", color="k")
+plt.savefig(f"nested/chilean/randomised_nested_model_{num_tests}samples_bin{bin}.svg", bbox_inches="tight")
