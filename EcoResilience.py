@@ -80,22 +80,29 @@ class GLVmodel(object):
 
         # Pick out interactions for each type
         core_species = int(self.N * (1 - nestedness_level))
-        interactions = defaultdict(list)
+        # print(core_species, "core species")
+        links = defaultdict(list)
         for label, p in zip('amfc', [p_a, p_m, p_f, p_c]):
-            size = int(p * L_max)
+            # size = int(p * L_max)
+            size = int(p * 4303)
+            # print(label, size)
             num_selected = 0
             while num_selected < size and len(max_pairs) > 0:
                 index, pair = random.choice(list(enumerate(max_pairs)))#selected_pairs)))
                 i, j = pair[0], pair[1]
                 if i < core_species or j < core_species:
-                    interactions[label].append((i, j))
+                    links[label].append((i, j))
                     max_pairs = np.delete(max_pairs, index)
                     num_selected += 1
                 else:
-                    if np.random.rand() > nestedness_level:
-                        interactions[label].append((i, j))
+                    if np.random.choice([0, 1], 1, p=[nestedness_level, 1-nestedness_level]) == 1:
+                        links[label].append((i, j))
                         max_pairs = np.delete(max_pairs, index)
                         num_selected += 1
+                    # if np.random.rand() > nestedness_level:
+                    #     links[label].append((i, j))
+                    #     max_pairs = np.delete(max_pairs, index)
+                    #     num_selected += 1
 
         interaction_matrix = np.zeros((self.N, self.N))
         # Set diagonal terms to ensure negative intraspecific interactions
@@ -106,26 +113,26 @@ class GLVmodel(object):
         for i in range(self.N):
             resources[i] = [i]
         for label in "amfc":
-            for i, j in interactions[label]:
+            for i, j in links[label]:
                 resources[i].append(j)
 
         factor = nested_factor  # Increase factor for core interactions
         for label in "amfc":
             if label == "a":
                 # j (higher index) preys on i --> ensures directionality
-                for i, j in interactions[label]:
+                for i, j in links[label]:
                     interaction_matrix[j, i] = factor * G[j, i] * self.fA * A[j, i] / np.sum(A[j, resources[j]])
                     interaction_matrix[i, j] = -interaction_matrix[j, i] / G[j, i]
             elif label == "m":
-                for i, j in interactions[label]:
+                for i, j in links[label]:
                     interaction_matrix[i, j] = factor * E[i, j] * self.fM * A[i, j] / np.sum(A[i, resources[i]])
                     interaction_matrix[j, i] = factor * E[j, i] * self.fM * A[j, i] / np.sum(A[j, resources[j]])
             elif label == "f":
-                for i, j in interactions[label]:
+                for i, j in links[label]:
                     interaction_matrix[i, j] = factor * F[i, j] * self.fF * A[i, j] / np.sum(A[i, resources[i]])
                     interaction_matrix[j, i] = 0
             elif label == "c":
-                for i, j in interactions[label]:
+                for i, j in links[label]:
                     interaction_matrix[i, j] = -factor * C[i, j] * self.fC * A[i, j] / np.sum(A[i, resources[i]])
                     interaction_matrix[j, i] = -factor * C[j, i] * self.fC * A[j, i] / np.sum(A[j, resources[j]])
 
