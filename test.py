@@ -1,214 +1,105 @@
+from EcoResilience import GLVmodel
 import numpy as np
-import random
+from os import system
 import matplotlib.pyplot as plt
-from scipy.linalg import eigvals
-from scipy.optimize import fsolve
-import seaborn as sns
-import networkx as nx
+from tqdm import tqdm
 
-
-def initialize_adjacency_matrix(S, E, forbidden_links=None):
-    """
-    Initialize a random adjacency matrix with S species and E links.
-    Ensures no forbidden links are added.
-
-    Parameters:
-        S (int): Number of species (nodes).
-        E (int): Total number of links (edges).
-        forbidden_links (set): Set of forbidden links (tuples of node indices).
-
-    Returns:
-        np.ndarray: Initialized adjacency matrix (S x S).
-    """
-    # Initialize empty adjacency matrix
-    adjacency_matrix = np.zeros((S, S), dtype=int)
-    links_added = 0
-
-    # Randomly add E links while avoiding forbidden links
-    while links_added < E:
-        i, j = random.randint(0, S - 1), random.randint(0, S - 1)
-        if i != j and adjacency_matrix[i, j] == 0 and (forbidden_links is None or (i, j) not in forbidden_links):
-            adjacency_matrix[i, j] = 1
-            # adjacency_matrix[j, i] = 1
-            links_added += 1
-
-    return adjacency_matrix
-
-
-def swap_links(adjacency_matrix, i, j1, j2, forbidden_links=None):
-    """
-    Attempt to swap a link in the adjacency matrix.
-
-    Parameters:
-        adjacency_matrix (np.ndarray): Current adjacency matrix.
-        i (int): Selected row index.
-        j1 (int): Index of the current 1 in the column, i.e., A[i, j1] = 1, where A is adjacency matrix.
-        j2 (int): Index of the current 0 in the column, i.e., A[i, j2] = 0, where A is adjacency matrix.
-        forbidden_links (set): Set of forbidden links (tuples of node indices).
-
-    Returns:
-        bool: Whether the swap was performed.
-    """
-    # Degrees of potential partners
-    degree_current_partner = np.sum(adjacency_matrix[:, j1])
-    degree_new_partner = np.sum(adjacency_matrix[:, j2])
-
-    # Condition 1: New partner must have a higher degree
-    if degree_new_partner <= degree_current_partner:
-        return False
-
-    # Condition 2: The swap should not cause the current partner to become extinct
-    if np.sum(adjacency_matrix[j1, :]) < 1:  # j1 would have no links after swap
-        return False
-
-    # Condition 3: The new link should not be forbidden
-    if forbidden_links is not None and (i, j2) in forbidden_links:
-        return False
-
-    # Perform the swap
-    adjacency_matrix[i, j1] = 0
-    adjacency_matrix[i, j2] = 1
-    return True
-
-
-def self_organising_network(S, E, forbidden_links=None, iterations=1000):
-    """
-    Perform the self-organising network model (SNM).
-
-    Parameters:
-        S (int): Number of species (nodes).
-        E (int): Total number of links (edges).
-        forbidden_links (set): Set of forbidden links (tuples of node indices).
-        iterations (int): Number of iterations to perform.
-
-    Returns:
-        np.ndarray: Final adjacency matrix.
-    """
-    # Step 1: Initialize random adjacency matrix
-    adjacency_matrix = initialize_adjacency_matrix(S, E, forbidden_links)
-
-    for _ in range(iterations):
-        # Step 2.1: Select a random row/column
-        i = random.randint(0, S - 1)
-        row_or_col = adjacency_matrix[i, :]
-
-        # Get indices of 1s (existing links) and 0s (potential links)
-        ones = np.where(row_or_col == 1)[0]
-        zeros = np.where(row_or_col == 0)[0]
-
-        if len(ones) == 0 or len(zeros) == 0:
-            continue
-
-        # Step 2.2: Pick a random 1 and a random 0
-        j1 = random.choice(ones)
-        j2 = random.choice(zeros)
-
-        # Step 2.3: Attempt to swap links
-        swap_links(adjacency_matrix, i, j1, j2, forbidden_links)
-
-    return adjacency_matrix
-
-def sort_nodes_by_degree(interaction_matrix):
-    """
-    Sort the adjacency matrix A based on the degrees of the nodes.
-
-    Parameters:
-        A (np.ndarray): Adjacency matrix (N x N).
-
-    Returns:
-        np.ndarray: Sorted adjacency matrix.
-    """
-    N = len(interaction_matrix)
-    adjacency_matrix = np.zeros((N, N))
-    for i in range(N):
-        for j in range(N):
-            if interaction_matrix[i, j] == 0:
-                adjacency_matrix[i, j] = 0
-            else:
-                adjacency_matrix[i, j] = 1
-            if i == j:
-                adjacency_matrix[i, j] = 0
-    # Compute degrees (sum of rows + columns for undirected graphs)
-    degrees = np.sum(adjacency_matrix, axis=0) + np.sum(adjacency_matrix, axis=1)
-
-    # Get the sorted indices in descending order
-    sorted_indices = np.argsort(degrees)[::-1]
-
-    # Rearrange rows and columns based on sorted indices
-    # sorted_adjacency = adjacency_matrix[np.ix_(sorted_indices, sorted_indices)]
-    sorted_interactions = interaction_matrix[np.ix_(sorted_indices, sorted_indices)]
-
-    return sorted_interactions, sorted_indices
-
-def visualize_adjacency_matrix(interaction_matrix):
-    """
-    Visualizes the adjacency (interaction) matrix as a heatmap and a network graph.
-    Parameters:
-        interaction_matrix: The interaction matrix (adjacency matrix) to visualize.
-    """
-    N = len(interaction_matrix)
-    # Sort nodes by degree
-    sorted_matrix, sorted_nodes = sort_nodes_by_degree(interaction_matrix)
-    # sorted_matrix = interaction_matrix
-    # sorted_nodes = list(range(N))
-
-    # Heatmap of the interaction matrix
-    plt.figure(figsize=(10, 8))
-    sns.heatmap(sorted_matrix, cmap='gray_r', linewidths=0.5, annot=False, square=True)
-    # sns.heatmap(sorted_matrix, cmap='coolwarm', linewidths=0.5, annot=False, square=True)
-    plt.title("Adjacency Matrix")# Heatmap")# (Sorted by Degree)")
-    plt.xlabel("Species")
-    plt.ylabel("Species")
-    plt.show()
-
-S = 30  # Number of species
-E = 200  # Number of links
-forbidden_links = None  #{(0, 1), (2, 3)}  # Example forbidden links
-
-adjacency_matrix = self_organising_network(S, E, forbidden_links, iterations=2000)
-# print(adjacency_matrix)
-visualize_adjacency_matrix(adjacency_matrix)
-
-# random_adjacency_matrix = initialize_adjacency_matrix(S, E)
-# sorted_adjacency, sorted_indices = sort_nodes_by_degree(random_adjacency_matrix)
-# visualize_adjacency_matrix(sorted_adjacency)
-
-
-# # Example adjacency matrix
-# A = np.array([
-#     [0., 0., 0., 1., 1.],
-#     [0., 0., 0., 1., 1.],
-#     [0., 0., 0., 1., 0.],
-#     [1., 1., 1., 0., 1.],
-#     [1., 1., 0., 1., 0.]
-# ])
+""" Stability assessment of nested model """
+# # Nested model parameters
+# N = 50  # Number of species
+# num_tests = 300
+# p_a, p_m, p_f, p_c = 0.4, 0.4, 0.1, 0.1  # Interaction type fractions
+# nestedness_level = 0.7  # Proportion of core species
+# nested_factor = 1.
+# model = GLVmodel(num_species=N)
+# system(f"mkdir nested/pa{p_a}_pm{p_m}_pf{p_f}_pc{p_c}")
 #
-# # Sort the adjacency matrix
-# sorted_A, sorted_indices = sort_adjacency_by_degree(A)
+# save = True
+# stability = []
+# for run in range(num_tests):
+#     # Generate parameters and assess stability
+#     r, interaction_matrix, X_eq = model.generate_glv_params(p_a, p_m, p_f, p_c, nestedness_level, nested_factor)
+#     # print(interaction_matrix)
+#     stable = model.check_stability(interaction_matrix, X_eq)
+#     print(run, stable)
+#     if stable:
+#         np.savetxt(f"nested/pa{p_a}_pm{p_m}_pf{p_f}_pc{p_c}/N{N}_nl{nestedness_level}_nf{nested_factor:.1f}_Run{run}.txt",
+#                    interaction_matrix, fmt="%.8f")
 #
-# print("Original Adjacency Matrix:")
-# print(A)
+#     stability.append(stable)
 #
-# print("\nSorted Adjacency Matrix:")
-# print(sorted_A)
-#
-# print("\nSorted Indices (Original to Sorted Order):")
-# print(sorted_indices)
+#     # model.visualize_adjacency_matrix(interaction_matrix)
+#     # print("Equilibrium abundances:", X_eq)
+# print(f"{sum(stability)}/{num_tests} networks (N={N}) are stable !")
 
 
+""" Application of nestedness to the Chilean data from Kefi et al. (PLOS Biology, 2016) """
+data_path = "chilean_data"
+interaction_type = {"a": "TI", "m": "NTIpos", "f": "NTIpos", "c": "NTIneg"}
+# 'a': antagonism = trophic interaction;
+# 'f': facilitation = non-trophic positive interaction;
+# 'c': competition = non-trophic negative interaction
+num_species = 106
+num_links = 4303  # num of links of every interaction type in the Chilean data
+model = GLVmodel(num_species)
 
-# import matplotlib.pyplot as plt
-# import networkx as nx
+# Extract the fraction of each interaction type
+fraction = {}
+for interaction_code in list(interaction_type.keys()):
+    file_name = f"chilean_{interaction_type[interaction_code]}"
+    f = open(f"{data_path}/{file_name}.txt", "r")
+    adj = []
+    for line in f.readlines()[1:]:
+        line = line.strip().split('\t')
+        adj.append([int(elt) for elt in line[2:]])
+    adj = np.array(adj)
+    adj = np.reshape(adj, (len(adj), len(adj)))
+    p = model.extract_proportion_of_interactions(adj, num_total_links=num_links, interaction_type=interaction_code)
+    # print(f"p_{interaction_code} = {fraction}")
+    fraction[interaction_code] = p
+
+    # OUTPUT
+    # 1358 links lead to p_a = 0.3156
+    # 6 links lead to p_m = 0.0014
+    # 160 links lead to p_f = 0.0372
+    # 1456 links lead to p_c = 0.3384
+
+print(fraction)
+system("mkdir nested/chilean")
+num_tests = 100
+bin = 0.10
+nl_range = np.arange(0., 1., bin)
+# level = 0.7
+p_stable = {}
+# to_save = open(f"nested/chilean/randomised_nested_model_{num_tests}samples_bin{bin:.2f}.txt", "w")
+# for level in nl_range:
+#     # system(f"mkdir nested/chilean/nl{level:.2f}")
+#     print(f"Nestedness level = {level:.2f}")
+#     stability = []
+#     count = 0
+#     for run in tqdm(range(num_tests)):
+#         # Generate a matrix with random interaction strengths
+#         r, interaction_matrix, X_eq = model.generate_glv_params(fraction["a"], fraction["m"], fraction["f"],
+#                                                                 fraction["c"], nestedness_level=level, nested_factor=1.0)
+#         # model.visualize_adjacency_matrix(interaction_matrix)
 #
-# # Visualize as a graph
-# G = nx.from_numpy_array(adjacency_matrix, create_using=nx.DiGraph)
-# nx.draw(G, with_labels=True, node_color="lightblue", arrows=True)
-# plt.show()
-#
-# # Visualize as a heatmap
-# plt.imshow(adjacency_matrix, cmap="viridis", origin="upper")
-# plt.colorbar(label="Link Presence")
-# plt.xlabel("Species")
-# plt.ylabel("Species")
-# plt.title("Adjacency Matrix")
-# plt.show()
+#         stable = model.check_stability(interaction_matrix, X_eq)
+#         # if stable:
+#         #     count += 1
+#         #     print(count, stable)
+#         #     np.savetxt(f"nested/chilean/nl{level:.2f}/Run{run}.txt", interaction_matrix, fmt="%.8f")
+#         stability.append(stable)
+#     print(f"{sum(stability)}/{num_tests} networks are stable !")
+#     p_stable[level] = sum(stability)/num_tests * 100
+#     to_save.write(f"{level:.2f} {sum(stability)/num_tests:.4f}\n")
+# # P_stable = np.c_[list(p_stable.keys()), list(p_stable.values())]
+# # np.savetxt(f"nested/chilean/randomised_nested_model_{num_tests}samples_bin{bin:.2f}.txt", P_stable, fmt="%.2f %.4f")
+# to_save.close()
+
+P_stable = np.loadtxt(f"nested/chilean/randomised_nested_model_{num_tests}samples_bin{bin:.2f}.txt", dtype=float)
+fig, ax = plt.subplots(figsize=(6, 4))
+ax.tick_params(axis='both', labelsize=11)
+ax.scatter(P_stable.T[0], P_stable.T[1], marker="o", color="k")
+ax.set_xlabel("Nestedness level", fontsize=13)
+ax.set_ylabel("Stability frequency", fontsize=13)
+plt.savefig(f"nested/chilean/randomised_nested_model_{num_tests}samples_bin{bin:.2f}.png", bbox_inches="tight")
