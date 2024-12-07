@@ -1,36 +1,34 @@
 from EcoResilience import GLVmodel
 import numpy as np
-from os import system
+from os import makedirs
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 """ Stability assessment of nested model """
-# # Nested model parameters
-# N = 50  # Number of species
-# num_tests = 300
-# p_a, p_m, p_f, p_c = 0.4, 0.4, 0.1, 0.1  # Interaction type fractions
-# nestedness_level = 0.7  # Proportion of core species
-# nested_factor = 1.
-# model = GLVmodel(num_species=N)
-# system(f"mkdir nested/pa{p_a}_pm{p_m}_pf{p_f}_pc{p_c}")
-#
-# save = True
-# stability = []
-# for run in range(num_tests):
-#     # Generate parameters and assess stability
-#     r, interaction_matrix, X_eq = model.generate_glv_params(p_a, p_m, p_f, p_c, nestedness_level, nested_factor)
-#     # print(interaction_matrix)
-#     stable = model.check_stability(interaction_matrix, X_eq)
-#     print(run, stable)
-#     if stable:
-#         np.savetxt(f"nested/pa{p_a}_pm{p_m}_pf{p_f}_pc{p_c}/N{N}_nl{nestedness_level}_nf{nested_factor:.1f}_Run{run}.txt",
-#                    interaction_matrix, fmt="%.8f")
-#
-#     stability.append(stable)
-#
-#     # model.visualize_adjacency_matrix(interaction_matrix)
-#     # print("Equilibrium abundances:", X_eq)
-# print(f"{sum(stability)}/{num_tests} networks (N={N}) are stable !")
+# Nested model parameters
+N = 50  # Number of species
+num_tests = 300
+p_a, p_m, p_f, p_c = 0.4, 0.3, 0.0, 0.0  # Interaction type fractions
+nestedness_level = 0.5  # Proportion of core species
+nested_factor = 1
+model = GLVmodel(num_species=N)
+makedirs(f"nested/pa{p_a}_pm{p_m}_pf{p_f}_pc{p_c}", exist_ok=True)
+
+save = True
+stability = []
+for run in tqdm(range(num_tests)):
+    # Generate parameters and assess stability
+    r, interaction_matrix, X_eq = model.generate_glv_params(p_a, p_m, p_f, p_c, nestedness_level, nested_factor)
+    stable = model.check_stability(interaction_matrix, X_eq)
+    if stable:
+        np.savetxt(f"nested/pa{p_a}_pm{p_m}_pf{p_f}_pc{p_c}/N{N}_nl{nestedness_level}_nf{nested_factor:.1f}_Run{run}.txt",
+                   interaction_matrix, fmt="%.8f")
+
+    stability.append(stable)
+
+    # model.visualize_adjacency_matrix(interaction_matrix)
+    # print("Equilibrium abundances:", X_eq)
+print(f"{sum(stability)}/{num_tests} networks (N={N}) are stable !")
 
 
 """ Application of nestedness to the Chilean data from Kefi et al. (PLOS Biology, 2016) """
@@ -96,10 +94,10 @@ bin = 0.02
 # # np.savetxt(f"nested/chilean/randomised_nested_model_{num_tests}samples_bin{bin}.txt", P_stable, fmt="%.2f %.4f")
 # to_save.close()
 
-P_stable = np.loadtxt(f"nested/chilean/randomised_nested_model_{num_tests}samples_bin{bin:.2f}.txt", dtype=float)
-fig, ax = plt.subplots(figsize=(6, 4))
-ax.tick_params(axis='both', labelsize=11)
-ax.scatter(P_stable.T[0], P_stable.T[1], marker="o", color="k")
-ax.set_xlabel("Nestedness level", fontsize=13)
-ax.set_ylabel("Stability frequency", fontsize=13)
-plt.savefig(f"nested/chilean/randomised_nested_model_{num_tests}samples_bin{bin:.2f}.svg", bbox_inches="tight")
+# P_stable = np.loadtxt(f"nested/chilean/randomised_nested_model_{num_tests}samples_bin{bin:.2f}.txt", dtype=float)
+# fig, ax = plt.subplots(figsize=(6, 4))
+# ax.tick_params(axis='both', labelsize=11)
+# ax.scatter(P_stable.T[0], P_stable.T[1], marker="o", color="k")
+# ax.set_xlabel("Nestedness level", fontsize=13)
+# ax.set_ylabel("Stability frequency", fontsize=13)
+# plt.savefig(f"nested/chilean/randomised_nested_model_{num_tests}samples_bin{bin:.2f}.svg", bbox_inches="tight")

@@ -8,6 +8,8 @@ import seaborn as sns
 import networkx as nx
 import random
 from collections import defaultdict
+from ordered_set import OrderedSet
+
 
 class GLVmodel(object):
 
@@ -50,7 +52,7 @@ class GLVmodel(object):
                 links_added += 1
         return adjacency_matrix
 
-    def generate_nested_glv_matrix(self, p_a=0.2, p_m=0, p_f=0, p_c=0, nestedness_level=0.7, nested_factor=1.5):
+    def generate_nested_glv_matrix(self, p_a=0.2, p_m=0, p_f=0, p_c=0, nestedness_level=0.7, nested_factor=1.5, const_efficiency=0.85):
         """
         Generate a GLV interaction matrix with nestedness.
 
@@ -63,14 +65,13 @@ class GLVmodel(object):
             p_a, p_m, p_f, p_c: density of each interaction type
             nestedness_level: proportion of core species
             nested_factor: scaling factor for core interactions
+            const_efficiency: constant efficiency for all interactions (if > 0), otherwise random
 
         Returns:
             interaction_matrix: interaction matrix (N x N)
         """
         # Conversion efficiency when i utilizes j in the corresponding interaction:
         # "g": antagonism; "e": mutualism; "f": facilitation; "c": competition
-        # const_efficiency = -1  # to make all efficiencies random as in the paper, use -1 here
-        const_efficiency = 0.85  # Fix all efficiencies as in S2Table.DOCX
         G = np.full((self.N, self.N), const_efficiency) if const_efficiency > 0 else np.random.uniform(0, 1, (self.N, self.N))
         E = np.full((self.N, self.N), const_efficiency) if const_efficiency > 0 else np.random.uniform(0, 1, (self.N, self.N))
         F = np.full((self.N, self.N), const_efficiency) if const_efficiency > 0 else np.random.uniform(0, 1, (self.N, self.N))
@@ -79,53 +80,85 @@ class GLVmodel(object):
         # Potential interaction preferences
         A = np.random.uniform(0, 1, (self.N, self.N))
 
-        interaction_densities = {'antagonistic': p_a, 'mutualistic': p_m, 'facilitative': p_f, 'competitive': p_c}
-        total_density = sum(interaction_densities.values())
-
+        # Check if the total density of interactions is <= 1
+        total_density = p_a + p_m + p_f + p_c
         if not total_density <= 1:
             raise ValueError(f"Total interaction density must be <= 1, got {total_density:.3f}")
 
         # Construct list of all pairs of species (`L_max` in Mougi & Kondo, Science 2012)
         max_pairs = np.array([(i, j) for i in range(self.N) for j in range(i + 1, self.N)], dtype="i,i")
+        max_pairs = np.random.permutation(max_pairs) # Randomize the order of pairs
+
         L_max = len(max_pairs)
 
         # Pick out interactions for each type
         core_species = int(self.N * (1 - nestedness_level)) # Number of core species
         links = defaultdict(list)
+        pointer = 0
         for label, p in zip('amfc', [p_a, p_m, p_f, p_c]):
             size = int(p * L_max)  # Calculate size based on the number of possible pairs
-            num_selected = 0
-            while num_selected < size and len(max_pairs) > 0:
-                index, (i, j) = random.choice(list(enumerate(max_pairs)))
+            while len(links[label]) < size:
+                i, j = max_pairs[pointer]
                 if i < core_species or j < core_species or random.random() > nestedness_level: 
                     # If at least one of the species is a core species, add the link;
                     # otherwise, add the link with probability `nestedness_level`
                     links[label].append((i, j))
-                    max_pairs = np.delete(max_pairs, index)
-                    num_selected += 1
+                    max_pairs = np.delete(max_pairs, pointer)  # Remove the pair from the list
+                pointer = (pointer + 1) % len(max_pairs)  # Move to the next pair
 
+        # Check the number of links for each interaction type
+        num_links = {k: len(v) for k, v in links.items()}
+        # Compare the number of links for each interaction type with the expected number
+        expected_links = {k: int(p * L_max) for k, p in zip('amfc', [p_a, p_m, p_f, p_c])}
+        for k, v in num_links.items():
+            if v != expected_links[k]:
+                raise ValueError(f"Expected {expected_links[k]} links for {k}, got {v}")        
+                    
         interaction_matrix = np.zeros((self.N, self.N))
         np.fill_diagonal(interaction_matrix, -np.diag(A)) # Set diagonal terms to ensure negative intraspecific interactions
 
-        resources = defaultdict(list)
-        for label in "amfc":
-            for i, j in links[label]:
-                resources[i].append(j)
+        # Initialize dictionaries to store resources for each interaction type
+        r_m, r_f, r_c, r_a = defaultdict(set), defaultdict(set), defaultdict(set), defaultdict(set)
+
+        # Process each type of interaction
+        for i, j in links['m']:  # Mutualistic
+            r_m[i].add(j)
+            r_m[j].add(i)
+
+        for i, j in links['f']:  # Facilitative
+            r_f[j].add(i)  # j facilitates i
+
+        for i, j in links['c']:  # Competitive
+            r_c[i].add(j)
+            r_c[j].add(i)
+
+        for i, j in links['a']:  # Antagonistic
+            r_a[j].add(i)  # j preys on i
+
+        # Convert all sets to lists
+        r_m = {k: list(v) for k, v in r_m.items()}
+        r_f = {k: list(v) for k, v in r_f.items()}
+        r_c = {k: list(v) for k, v in r_c.items()}
+        r_a = {k: list(v) for k, v in r_a.items()}
 
         factor = nested_factor  # Increase factor for core interactions
         # TODO: why is the factor constant for all interactions regardless of core or not?
         for i, j in links["a"]: # j (higher index) preys on i --> ensures directionality
-            interaction_matrix[j, i] = factor * G[j, i] * self.fA * A[j, i] / np.sum(A[j, resources[j]])
+            interaction_matrix[j, i] = factor * G[j, i] * self.fA * A[j, i] / np.sum(A[j, r_a[j]])
             interaction_matrix[i, j] = -interaction_matrix[j, i] / G[j, i]
+            # check_interaction_matrix_nans(interaction_matrix, i, j)
         for i, j in links["m"]:
-            interaction_matrix[i, j] = factor * E[i, j] * self.fM * A[i, j] / np.sum(A[i, resources[i]])
-            interaction_matrix[j, i] = factor * E[j, i] * self.fM * A[j, i] / np.sum(A[j, resources[j]])
+            interaction_matrix[i, j] = factor * E[i, j] * self.fM * A[i, j] / np.sum(A[i, r_m[i]])
+            interaction_matrix[j, i] = factor * E[j, i] * self.fM * A[j, i] / np.sum(A[j, r_m[j]])
+            # check_interaction_matrix_nans(interaction_matrix, i, j)
         for i, j in links["f"]:
-            interaction_matrix[i, j] = factor * F[i, j] * self.fF * A[i, j] / np.sum(A[i, resources[i]])
+            interaction_matrix[i, j] = factor * F[i, j] * self.fF * A[i, j] / np.sum(A[r_f[j], j])
             interaction_matrix[j, i] = 0
+            # check_interaction_matrix_nans(interaction_matrix, i, j)
         for i, j in links["c"]:
-            interaction_matrix[i, j] = -factor * C[i, j] * self.fC * A[i, j] / np.sum(A[i, resources[i]])
-            interaction_matrix[j, i] = -factor * C[j, i] * self.fC * A[j, i] / np.sum(A[j, resources[j]])
+            interaction_matrix[i, j] = -factor * C[i, j] * self.fC * A[i, j] / np.sum(A[i, r_c[i]])
+            interaction_matrix[j, i] = -factor * C[j, i] * self.fC * A[j, i] / np.sum(A[j, r_c[j]])
+            # check_interaction_matrix_nans(interaction_matrix, i, j)
 
         return interaction_matrix
 
