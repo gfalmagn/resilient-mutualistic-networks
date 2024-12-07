@@ -19,6 +19,27 @@ class GLVmodel(object):
         self.fC = fC  # relative strength of competitive interactions
 
     def generate_random_adjacency_matrix(self, num_ones):
+        """
+        Generate a random symmetric adjacency matrix with a specified number of ones.
+
+        Parameters
+        ----------
+        num_ones : int
+            The desired number of non-zero (1) entries in the upper/lower triangle
+            of the matrix (excluding diagonal).
+
+        Returns
+        -------
+        numpy.ndarray
+            A symmetric N x N binary adjacency matrix with exactly num_ones pairs of ones,
+            where N is the size of the network (self.N). The diagonal entries are zero.
+
+        Notes
+        -----
+        - The matrix is symmetric, meaning if entry (i,j) is 1, then (j,i) is also 1
+        - Self-loops are not allowed (diagonal entries remain 0)
+        - The total number of ones in the matrix will be 2 * num_ones due to symmetry
+        """
         adjacency_matrix = np.zeros((self.N, self.N), dtype=int)
         links_added = 0
         while links_added < num_ones:
@@ -54,87 +75,57 @@ class GLVmodel(object):
         E = np.full((self.N, self.N), const_efficiency) if const_efficiency > 0 else np.random.uniform(0, 1, (self.N, self.N))
         F = np.full((self.N, self.N), const_efficiency) if const_efficiency > 0 else np.random.uniform(0, 1, (self.N, self.N))
         C = np.full((self.N, self.N), const_efficiency) if const_efficiency > 0 else np.random.uniform(0, 1, (self.N, self.N))
-        # G = np.random.uniform(0, 1, (self.N, self.N))
-        # E = np.random.uniform(0, 1, (self.N, self.N))
-        # F = np.random.uniform(0, 1, (self.N, self.N))
-        # C = np.random.uniform(0, 1, (self.N, self.N))
 
         # Potential interaction preferences
         A = np.random.uniform(0, 1, (self.N, self.N))
-        # np.fill_diagonal(A, 0)
 
-        P = p_a + p_m + p_f + p_c
-        assert P <= 1 + 1e-5, "Total interaction density must be less than 1, but you entered {} + {} + {} + {} = {}".format(
-            p_a, p_m, p_f, p_c, P)
-        if P > 1:
-            p_a -= 1e-5
-        # N_pairs = int(P * self.N * (self.N - 1) / 2)  # number of connected pairs - REDUNDANT
+        interaction_densities = {'antagonistic': p_a, 'mutualistic': p_m, 'facilitative': p_f, 'competitive': p_c}
+        total_density = sum(interaction_densities.values())
+
+        if not total_density <= 1:
+            raise ValueError(f"Total interaction density must be <= 1, got {total_density:.3f}")
 
         # Construct list of all pairs of species (`L_max` in Mougi & Kondo, Science 2012)
         max_pairs = np.array([(i, j) for i in range(self.N) for j in range(i + 1, self.N)], dtype="i,i")
         L_max = len(max_pairs)
 
-        # # Pick out P links randomly
-        # selected_pairs = np.random.choice(max_pairs, size=N_pairs, replace=False)
-        # print(N_pairs, selected_pairs.size)
-
         # Pick out interactions for each type
-        core_species = int(self.N * (1 - nestedness_level))
-        # print(core_species, "core species")
+        core_species = int(self.N * (1 - nestedness_level)) # Number of core species
         links = defaultdict(list)
         for label, p in zip('amfc', [p_a, p_m, p_f, p_c]):
-            # size = int(p * L_max)
-            size = int(p * 4303)
-            # print(label, size)
+            size = int(p * L_max)  # Calculate size based on the number of possible pairs
             num_selected = 0
             while num_selected < size and len(max_pairs) > 0:
-                index, pair = random.choice(list(enumerate(max_pairs)))#selected_pairs)))
-                i, j = pair[0], pair[1]
-                if i < core_species or j < core_species:
+                index, (i, j) = random.choice(list(enumerate(max_pairs)))
+                if i < core_species or j < core_species or random.random() > nestedness_level: 
+                    # If at least one of the species is a core species, add the link;
+                    # otherwise, add the link with probability `nestedness_level`
                     links[label].append((i, j))
                     max_pairs = np.delete(max_pairs, index)
                     num_selected += 1
-                else:
-                    if np.random.choice([0, 1], 1, p=[nestedness_level, 1-nestedness_level]) == 1:
-                        links[label].append((i, j))
-                        max_pairs = np.delete(max_pairs, index)
-                        num_selected += 1
-                    # if np.random.rand() > nestedness_level:
-                    #     links[label].append((i, j))
-                    #     max_pairs = np.delete(max_pairs, index)
-                    #     num_selected += 1
 
         interaction_matrix = np.zeros((self.N, self.N))
-        # Set diagonal terms to ensure negative intraspecific interactions
-        for i in range(self.N):
-            interaction_matrix[i, i] = -A[i, i]  #-np.random.uniform()  # Ensuring stability by negative self-regulation
+        np.fill_diagonal(interaction_matrix, -np.diag(A)) # Set diagonal terms to ensure negative intraspecific interactions
 
-        resources = {}  #defaultdict(list)
-        for i in range(self.N):
-            resources[i] = [i]
+        resources = defaultdict(list)
         for label in "amfc":
             for i, j in links[label]:
                 resources[i].append(j)
 
         factor = nested_factor  # Increase factor for core interactions
-        for label in "amfc":
-            if label == "a":
-                # j (higher index) preys on i --> ensures directionality
-                for i, j in links[label]:
-                    interaction_matrix[j, i] = factor * G[j, i] * self.fA * A[j, i] / np.sum(A[j, resources[j]])
-                    interaction_matrix[i, j] = -interaction_matrix[j, i] / G[j, i]
-            elif label == "m":
-                for i, j in links[label]:
-                    interaction_matrix[i, j] = factor * E[i, j] * self.fM * A[i, j] / np.sum(A[i, resources[i]])
-                    interaction_matrix[j, i] = factor * E[j, i] * self.fM * A[j, i] / np.sum(A[j, resources[j]])
-            elif label == "f":
-                for i, j in links[label]:
-                    interaction_matrix[i, j] = factor * F[i, j] * self.fF * A[i, j] / np.sum(A[i, resources[i]])
-                    interaction_matrix[j, i] = 0
-            elif label == "c":
-                for i, j in links[label]:
-                    interaction_matrix[i, j] = -factor * C[i, j] * self.fC * A[i, j] / np.sum(A[i, resources[i]])
-                    interaction_matrix[j, i] = -factor * C[j, i] * self.fC * A[j, i] / np.sum(A[j, resources[j]])
+        # TODO: why is the factor constant for all interactions regardless of core or not?
+        for i, j in links["a"]: # j (higher index) preys on i --> ensures directionality
+            interaction_matrix[j, i] = factor * G[j, i] * self.fA * A[j, i] / np.sum(A[j, resources[j]])
+            interaction_matrix[i, j] = -interaction_matrix[j, i] / G[j, i]
+        for i, j in links["m"]:
+            interaction_matrix[i, j] = factor * E[i, j] * self.fM * A[i, j] / np.sum(A[i, resources[i]])
+            interaction_matrix[j, i] = factor * E[j, i] * self.fM * A[j, i] / np.sum(A[j, resources[j]])
+        for i, j in links["f"]:
+            interaction_matrix[i, j] = factor * F[i, j] * self.fF * A[i, j] / np.sum(A[i, resources[i]])
+            interaction_matrix[j, i] = 0
+        for i, j in links["c"]:
+            interaction_matrix[i, j] = -factor * C[i, j] * self.fC * A[i, j] / np.sum(A[i, resources[i]])
+            interaction_matrix[j, i] = -factor * C[j, i] * self.fC * A[j, i] / np.sum(A[j, resources[j]])
 
         return interaction_matrix
 
