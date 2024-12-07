@@ -155,38 +155,6 @@ class GLVmodel(object):
 
         return np.all(np.real(eigenvalues) < 0)
 
-    # def compute_jacobian(self, interaction_matrix, X_eq, r):
-    #     """
-    #     Compute the Jacobian matrix at equilibrium X_eq for assessing stability.
-    #     """
-    #     J = np.zeros((self.N, self.N))
-    #     for i in range(self.N):
-    #         for j in range(self.N):
-    #             if i == j:
-    #                 J[i, j] = r[i] - np.sum(interaction_matrix[i, :] * X_eq)
-    #             else:
-    #                 J[i, j] = interaction_matrix[i, j] * X_eq[j]
-    #
-    #     return J
-    #
-    # def check_stability(self, jacobian_matrix, plot=False):
-    #     eigenvalues = eigvals(jacobian_matrix)
-    #     print(eigenvalues)
-    #     real_parts = eigenvalues.real
-    #
-    #     if plot:
-    #         # Plot eigenvalues for visualization
-    #         plt.scatter(real_parts, eigenvalues.imag, color='blue')
-    #         plt.axvline(0, color='red', linestyle='--')
-    #         plt.xlabel('Real Part')
-    #         plt.ylabel('Imaginary Part')
-    #         plt.title('Eigenvalue Spectrum of Jacobian Matrix')
-    #         plt.show()
-    #
-    #     # Check if all eigenvalues have negative real parts
-    #     stable = np.all(real_parts < 0)
-    #     return stable, eigenvalues
-
     def visualize_network(self, interaction_matrix):
         G = nx.from_numpy_array(interaction_matrix)
         num_nodes = len(interaction_matrix)
@@ -209,24 +177,15 @@ class GLVmodel(object):
         Returns:
             np.ndarray: Sorted adjacency matrix.
         """
-        adjacency_matrix = np.zeros((self.N, self.N))
-        for i in range(self.N):
-            for j in range(self.N):
-                if interaction_matrix[i, j] == 0:
-                    adjacency_matrix[i, j] = 0
-                else:
-                    adjacency_matrix[i, j] = 1
-                # if i == j:
-                #     adjacency_matrix[i, j] = 0
-        # Compute degrees (sum of rows + columns for undirected graphs)
-        degrees = np.sum(adjacency_matrix, axis=0) + np.sum(adjacency_matrix, axis=1)
+        adjacency_matrix = np.sign(abs(interaction_matrix)) # Convert to binary matrix
+        degrees = adjacency_matrix.sum(axis=0) + adjacency_matrix.sum(axis=1) # Sum in and out degrees 
+        # TODO: why sum both in and out degrees? Should we sum only in-degrees or out-degrees?
 
         # Get the sorted indices in descending order
         sorted_indices = np.argsort(degrees)[::-1]
 
         # Rearrange rows and columns based on sorted indices
         sorted_adjacency = adjacency_matrix[np.ix_(sorted_indices, sorted_indices)]
-        # sorted_interactions = interaction_matrix[np.ix_(sorted_indices, sorted_indices)]
 
         return sorted_adjacency, sorted_indices
 
@@ -238,28 +197,15 @@ class GLVmodel(object):
         """
         # Sort nodes by degree
         sorted_matrix, sorted_nodes = self.sort_nodes_by_degree(interaction_matrix)
-        # print(sorted_matrix)
         vmax = np.abs(sorted_matrix).max()
 
         # Heatmap of the interaction matrix
         plt.figure(figsize=(10, 8))
-        # sns.heatmap(np.abs(sorted_matrix), cmap='gray_r', linewidths=0.5, annot=False, square=True)
         sns.heatmap(sorted_matrix, cmap='bwr_r', linewidths=0.5, annot=False, square=True, vmin=-vmax, vmax=vmax)
-        plt.title("Interaction Matrix Heatmap")# (Sorted by Degree)")
+        plt.title("Interaction Matrix Heatmap")
         plt.xlabel("Species")
         plt.ylabel("Species")
         plt.show()
-
-        # # Create a NetworkX graph from the interaction matrix
-        # G = nx.from_numpy_array(interaction_matrix)
-        #
-        # # Plot the graph
-        # plt.figure(figsize=(10, 10))
-        # pos = nx.spring_layout(G)  # Positions for all nodes
-        # nx.draw(G, pos, with_labels=True, node_size=500, node_color='lightblue', font_size=10, font_weight='bold',
-        #         edge_color='gray')
-        # plt.title("Network Graph of Species Interactions")
-        # plt.show()
 
 
     def visualize_adjacency_matrix(self, interaction_matrix):
@@ -270,20 +216,18 @@ class GLVmodel(object):
         """
         # Sort nodes by degree
         sorted_matrix, sorted_nodes = self.sort_nodes_by_degree(interaction_matrix)
-        # print(sorted_matrix)
 
         # Heatmap of the interaction matrix
         plt.figure(figsize=(10, 8))
         sns.heatmap(sorted_matrix, cmap='gray_r', linewidths=0.5, linecolor="lightgray", annot=False, square=True, cbar=False)
-        # sns.heatmap(sorted_matrix, cmap='coolwarm', linewidths=0.5, annot=False, square=True)
-        plt.title("Adjacency Matrix")  # Heatmap")# (Sorted by Degree)")
+        plt.title("Adjacency Matrix") 
         plt.xlabel("Species")
         plt.ylabel("Species")
         plt.show()
 
     def extract_proportion_of_interactions(self, adj, num_total_links, interaction_type):
         """
-        This function takes an adjacency matrix (from Kefi et al. PLOS Biology, 2016) to
+        This function takes an adjacency matrix (eg from Kefi et al. PLOS Biology, 2016) to
         randomize the entries a_ij, which represent interaction strengths between species i and j.
 
         :param
@@ -296,7 +240,6 @@ class GLVmodel(object):
             a_rand: randomized interaction matrix
         """
         links = []
-        num_links = 0
         num_intraspecific = 0
         num_monodirectional = 0
         num_bidirectional = 0
@@ -305,42 +248,30 @@ class GLVmodel(object):
                 if i == j:
                     num_intraspecific += 1
                     links.append([i, j])
-                    # num_links += 1
                 else:
                     if adj[i, j] == 1 and adj[j, i] == 0:
                         num_monodirectional += 1
                         links.append([i, j])
-                        num_links += 1
                     elif adj[i, j] == 1 and adj[j, i] == 1:
                         num_bidirectional += 1
-                        links.append([i, j])
-                        links.append([j, i])
-                        num_links += 2
+                        links.extend([[i, j], [j, i]])
                     elif adj[i, j] == 0 and adj[j, i] == 1:
                         num_monodirectional += 1
                         links.append([j, i])
-                        num_links += 1
-        # print(f"{interaction_type}: {num_links}")
-        # print(f"intraspecific: {num_intraspecific}, mono-dir: {num_monodirectional}, bi-dir: {num_bidirectional}")
 
         num_interactions = 0
         if interaction_type == 'a':  # Tropic interactions
             num_interactions = num_monodirectional
-            # print(f"{interaction_type}: {num_interactions}")
 
         elif interaction_type == 'f':  # Facilitating interactions
             num_interactions = num_monodirectional
-            # print(f"{interaction_type}: {num_interactions}")
 
         elif interaction_type == "m":
             num_interactions = num_bidirectional
-            # print(f"{interaction_type}: {num_interactions}")
 
         elif interaction_type == 'c':  # Competitive interactions
             num_interactions = num_bidirectional
-            # print(f"{interaction_type}: {num_interactions}")
 
         proportion = num_interactions / num_total_links
-        # print(f"{num_interactions} links lead to p_{interaction_type} = {proportion:.4f}")
 
         return proportion
