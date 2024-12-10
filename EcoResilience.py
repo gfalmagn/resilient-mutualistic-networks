@@ -272,6 +272,8 @@ class GLVmodel(object):
         :return:
             a_rand: randomized interaction matrix
         """
+        # TODO: That is not what the function actually does. It calculates the proportion of interactions of a given type
+        #  in the adjacency matrix. The function should be renamed to reflect this.
         links = []
         num_intraspecific = 0
         num_monodirectional = 0
